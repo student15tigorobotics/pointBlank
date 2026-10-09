@@ -1,19 +1,25 @@
 # PointBlank Swarm
 
-A VR tower-defence / swarm shooter for a **Linux laptop driving an HTC VIVE XR Elite over OpenXR**.
-Built in Godot 4.7 (.NET). Hold the line against thousands of polygon drones across six themed chapters.
+A VR tower-defence / swarm shooter for the **HTC VIVE XR Elite** (Android standalone, OpenXR).
+Built in Godot 4.7 with GDScript. Hold the line against thousands of polygon drones across six themed chapters.
+
+## Target
+
+- Android APK on the XR Elite, deployed over adb. The headset is standalone, so there is no PC VR path.
+- Desktop preview runs from the same project (`--desktop`) so you can test without the headset.
+- Passthrough uses the HTC layer from the godot_openxr_vendors plugin (v3.0.0 or later; this build pins 5.1.0-stable).
 
 ## Features
 
-- **Swarm combat**: up to 2,500 enemies alive at once by default, adapting to the headset's frame budget (see *Performance*).
+- **Swarm combat**: up to 2,500 enemies alive by default. The on-device benchmark sets the real cap.
 - **Tower defence**: five towers (Turret, Tesla, Frost, Mortar, Sniper), three upgrade levels each, sell refunds 60%.
-- **Held weapons**: Blaster, Scatter, Rail, Chain Arc, Nova Grenade, with built-in aim assist.
+- **Held weapons**: Blaster, Scatter, Rail, Chain Arc, Nova Grenade, with aim assist.
 - **Early wave bonus**: call a wave early; the remaining prep time converts to credits.
 - **Overkill credits**: damage beyond an enemy's remaining HP converts into credits.
-- **Six chapters**: Space Opera, Superhero Metropolis, Noir Harbor, Ancient Egypt, Iron Pantheon, Neon Future. Original characters and names, inspired by those genres.
-- **Story**: prologue, per-chapter intro and outro, branching choice (Sun Gate), two endings.
-- **Offline voice**: Piper TTS (local VITS model) reads each line when installed; subtitles always show.
-- **Upgrades**: eight levelled upgrades and eight one-time unlocks, bought in the hub between chapters.
+- **Six chapters**: Space Opera, Superhero Metropolis, Noir Harbor, Ancient Egypt, Iron Pantheon, Neon Future. Original characters, inspired by those genres.
+- **Story**: prologue, per-chapter intro and outro, a branching choice (the Sun Gate), two endings.
+- **Speech**: Android uses the device text-to-speech engine (`DisplayServer.tts_speak`). Desktop preview uses the Piper CLI when installed. Subtitles always show.
+- **Upgrades**: eight levelled upgrades and eight one-time unlocks, bought in the hub.
 - **Cheat codes**: each chapter clear reveals a four-digit code; redeem it on the keypad in CODES.
 - **Leaderboard**: top ten local scores with generated callsigns.
 - **Graphics**: MultiMesh instancing, billboard glow sprites beyond 3 m, bloom and fog per theme, adaptive resolution.
@@ -21,69 +27,105 @@ Built in Godot 4.7 (.NET). Hold the line against thousands of polygon drones acr
 ## Layout
 
 ```
-godot/                 Godot project (open this folder)
-  Core/                Engine-free simulation and rules (compiled by the tests too)
-  Game/                Godot layer: rendering, input, UI, hub, story, flow
-  scenes/Main.tscn     Entry scene (boots everything in code)
-tests/CoreChecks/      Console tests for Core (57 checks)
-scripts/fetch_voice.py Installs the Piper CLI and the offline voice model
+godot/                   Godot project (open this folder)
+  core/                  Engine-free simulation and rules (GDScript)
+  game/                  Engine layer: rendering, input, UI, hub, story, boot
+  tests/core_checks.gd   Core rule tests (run headless)
+  scenes/main.tscn       Entry scene
+  project.godot          Renderer mobile, OpenXR enabled, TTS enabled
+  export_presets.cfg     Android preset: arm64, Gradle build, OpenXR, HTC vendor features
+  openxr_action_map.tres OpenXR bindings, including the VIVE Focus 3 / XR Elite profile
+scripts/
+  fetch_openxr_vendors.sh  Installs godot_openxr_vendors 5.1.0-stable into godot/addons
+  fetch_voice.py           Installs the Piper CLI and voice model (desktop preview only)
+  deploy_android.sh        Builds the APK, installs it over adb, launches it
+  benchmark_pull.sh        Pulls the on-device swarm benchmark from logcat into a CSV
 ```
 
-## Run it
+## Set up (on your machine)
 
-Requirements: Godot 4.7 **.NET** edition, and a .NET 8 SDK.
+You need Godot 4.7 (standard build, not .NET), its Android export templates, JDK 17, and the Android SDK
+(platform-tools, build-tools, platform 35) with `ANDROID_HOME` set. Put `adb` on your PATH.
 
-1. Install the voice (optional, but the story is written for it):
+1. Install the vendor plugin (HTC passthrough and the export options):
    ```
-   python3 scripts/fetch_voice.py
+   scripts/fetch_openxr_vendors.sh
    ```
-2. Open `godot/` in the Godot editor (or `godot --path godot`). Press Play.
-3. For the headset, make sure an OpenXR runtime is running and the XR Elite is connected. In
-   *Project Settings > XR > OpenXR*, enable the **HTC VIVE Focus 3 controller** interaction profile
-   (the XR Elite uses the same controller profile).
-4. Without a headset the game starts in desktop preview. Force it with `godot --path godot -- --desktop`.
+2. Install the Gradle Android build template (the deploy script does this on first run if it is missing):
+   ```
+   godot --headless --path godot --install-android-build-template
+   ```
+3. On the XR Elite: enable developer mode and USB debugging, then connect it with USB and accept the prompt.
 
-### Controls
+## Build, deploy and benchmark
 
-| Action | VIVE XR Elite | Desktop |
-|---|---|---|
-| Fire held weapon / click UI | Right trigger | Left mouse |
-| Place tower on pad | Left trigger (aim at a pad) | Middle mouse |
-| Sell tower | Left grip + place | Shift + middle mouse |
-| Upgrade tower | Right B/Y | Right mouse |
-| Call next wave early | Left B/Y (or the CALL WAVE button) | G |
-| Cycle tower type | Left stick X | Q / E |
-| Cycle weapon | Right stick X | R / F |
-| Advance dialogue | Right A/X | Space / Enter |
-| Retreat / menu | Left menu | Escape |
+```
+GODOT=/path/to/godot scripts/deploy_android.sh          # debug APK, install, launch
+```
 
-## Performance and the enemy ceiling
+Then on the headset: **Hub > OPTIONS > SWARM BENCHMARK**. The benchmark ramps the swarm until frames stop holding
+90 Hz. When it finishes, pull the results to your machine:
 
-The on-screen ceiling is **not yet measured on hardware**. What the code does:
+```
+scripts/benchmark_pull.sh results.csv
+```
 
-- Enemies are simulated in flat arrays (`Core/Swarm.cs`). The simulation step for 5,000 enemies takes about 1 ms per frame on the development host (.NET, not the headset).
-- Rendering uses MultiMeshes: one draw per low-poly shape plus one for glow sprites. Enemies outside the view cone are culled before any transform is written.
-- Enemies within 3 m use low-poly meshes up to a mesh budget. Everything else becomes a billboard sprite.
-- `Quality.cs` watches frame time against 90 Hz and lowers render scale, mesh budget and spawn cap when it falls behind, then recovers.
-- **To find your headset's real maximum**: *Hub > OPTIONS > SWARM BENCHMARK*. It ramps the swarm and saves the highest visible count that held frame time. The result shows on the OPTIONS page.
+The CSV has one row every 2 s (elapsed, alive, visible, average frame time, graphics tier) and a `RESULT` row with the
+sustained alive count, visible count and tier at the last in-budget frame. The battle spawn cap is set from that result on
+the next launch. Re-run the benchmark after changing graphics tiers.
+
+To run the desktop preview instead:
+
+```
+godot --path godot -- --desktop
+```
+
+### Controls (VIVE XR Elite)
+
+| Action | Control |
+|---|---|
+| Fire held weapon / click UI | Right trigger |
+| Place tower on pad, or click UI with the left hand | Left trigger (aim at a pad) |
+| Sell tower | Left grip + place |
+| Upgrade tower | Right B/Y |
+| Call next wave early | Left B/Y |
+| Cycle tower type / weapon | Left stick X / Right stick X |
+| Advance dialogue | Right A/X |
+| Retreat / menu | Left menu |
+
+Desktop: left mouse fires and clicks UI, middle mouse places, Shift + middle sells, right mouse upgrades, G calls a wave,
+Space or Enter advances, Escape retreats, Q/E and R/F cycle towers and weapons.
 
 ## Verification status
 
 | Check | Result |
 |---|---|
-| Core rules and simulation (`tests/CoreChecks`) | 57 of 57 pass |
-| Godot C# build (Godot 4.7 .NET) | builds with 0 errors |
-| Headless smoke (`godot --headless --path godot -- --smoke`) | passes: all hub tabs build, JSON saves round-trip, dialogue plays, scripted 8-wave battle reaches a result, benchmark completes |
-| Piper CLI (`piper --help`) | confirms `--model` and `--output_file` |
-| Voice model download | **not verified here**: this sandbox's proxy refused huggingface.co |
-| Rendering, XR tracking, controller buttons | **not verified**: no display or headset in the build environment |
+| All GDScript parses (core, game, tests) | Pass (37 files, Godot 4.7.2 check-only) |
+| Core rule tests (`godot --headless -s res://tests/core_checks.gd`) | 73 of 73 pass |
+| Headless smoke (`godot --headless --path godot -- --smoke`) | Pass: hub tabs build, JSON round-trip, dialogue, scripted battle to an outcome, benchmark stop |
+| Focus 3 action profile | Added from Godot 4.5 default bindings (`/interaction_profiles/htc/vive_focus3_controller`); parses in Godot |
+| Android APK build | **Not built here.** The Android SDK comes from dl.google.com, which this sandbox cannot reach |
+| On-device benchmark (enemy cap) | **Not run.** Needs the headset; use the steps above |
+| Passthrough, controller clicks, speech on device | **Not verified** on hardware |
 
-## Known gaps
+The headless benchmark numbers (about 5,400 alive and visible) measure what the simulation culls, not GPU frame time.
 
-- Controller input uses the action names in `godot/openxr_action_map.tres` (`trigger`, `grip`, `primary`, `ax_button`, `by_button`, `menu_button`), which Godot generated on import. They are not yet tested on the headset. If a button does nothing, check its binding in that file and in `Game/Controls.cs`.
-- Linux OpenXR support for the XR Elite is unconfirmed. VIVE documents PC VR for the XR Elite through Windows (VIVE Streaming), and only mentions Linux in an experimental Steam Link VR note. If no Linux OpenXR runtime sees the headset, the desktop preview still runs.
-- Balance numbers (wave sizes, costs, damage) are first-pass estimates. They have not been playtested.
-- Every speaker uses the same Piper voice. `Story.Speakers` stores a `VoiceSid` and `Speed` per character, but `Game/Voice.cs` does not pass them to Piper yet. Wiring them up needs a multi-speaker model and the CLI's speaker flag.
+## Review fixes applied
+
+- Controls: an untracked controller produces no pointer, so it cannot hover or click.
+- Click-swallow on Focus 3: each hand has its own trigger edges with hysteresis, and the Focus 3 profile is bound (the generated map had none).
+- Benchmark: samples per frame (no 2-second averaging), uses the saved graphics tier, and reports an aborted run as ABORTED.
+- Rules: starting credits no longer count toward the bank payout; the Logistics discount applies to upgrades; rail and nova ignore shots behind the controller; the wave director keeps spawns it cannot place; only one ending flag can be set.
+- Saves: an unreadable save is backed up before a fresh profile starts; quality values from a hand-edited save are clamped; choices are saved immediately.
+
+## Known gaps and risks
+
+- **Not yet built or run on the headset.** The APK, controller bindings, passthrough, speech and the enemy cap all need an on-device check.
+- **Passthrough**: the plugin's HTC wrapper exposes only `is_passthrough_supported` and `is_passthrough_started`. Passthrough is switched on by setting the blend mode to alpha. Whether the XR Elite shows the layer is unverified.
+- **Speech**: on Android this is the device's text-to-speech engine, not a bundled neural model, so voices depend on what the device has installed. Piper runs on desktop only. Every speaker uses one voice; per-speaker voices need a multi-speaker model and the CLI's speaker flag.
+- **Performance**: the simulation and renderer are GDScript, which is much slower than C#. The enemy ceiling on the headset depends on that cost, which is why the benchmark measures it rather than assuming a number.
+- **Vendor plugin**: GitHub access to the GodotVR repository is blocked from the build sandbox. Install it with `scripts/fetch_openxr_vendors.sh` on your machine.
+- Balance (wave sizes, costs, damage) is a first pass and has not been playtested.
 - Leaderboard is local. There is no online service.
 
 ## License
