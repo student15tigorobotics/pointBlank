@@ -18,3 +18,6 @@ tests/**/obj/
 
 # Third-party plugin, fetched by scripts/fetch_openxr_vendors.sh
 godot/addons/godotopenxrvendors/
+
+# Python bytecode caches
+__pycache__/

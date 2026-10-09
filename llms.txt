@@ -1,0 +1,24 @@
+# PointBlank Swarm
+
+Godot 4.7 GDScript VR game for the HTC VIVE XR Elite (Android, OpenXR). GPL-3.0-or-later.
+
+## Where things are
+- Game code: godot/game (engine layer), godot/core (engine-free rules), godot/tests (headless tests)
+- Project settings: godot/project.godot, godot/export_presets.cfg, godot/openxr_action_map.tres
+- Third-party assets: godot/assets/manifest.json (URLs, checksums, licences). Attribution: godot/assets/CREDITS.md
+
+## Downloading assets
+- List: python3 scripts/fetch_assets.py --list
+- Dry run: python3 scripts/fetch_assets.py --dry-run
+- Fetch: python3 scripts/fetch_assets.py   (use --force to re-download)
+- Only licences on the manifest allowlist are fetched (CC0-1.0, CC-BY-4.0, MIT, Apache-2.0, BSD, public domain).
+- Files must go inside godot/assets/. Each entry needs a sha256; the script reports the value to add when it is missing.
+
+## Checks
+- Core tests: godot --headless --path godot -s res://tests/core_checks.gd
+- Headless smoke: godot --headless --path godot -- --smoke
+
+## Build and deploy
+- Android APK, install and launch: GODOT=/path/to/godot scripts/deploy_android.sh
+- Vendor plugin (HTC passthrough): scripts/fetch_openxr_vendors.sh
+- On-device benchmark logs: scripts/benchmark_pull.sh results.csv
