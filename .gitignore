@@ -5,7 +5,6 @@ godot/bin/
 godot/obj/
 godot/*.sln
 godot/*.csproj.user
-godot/export_presets.cfg
 
 # .NET test harness build output
 tests/**/bin/
@@ -16,3 +15,6 @@ tests/**/obj/
 .idea/
 *.swp
 .DS_Store
+
+# Third-party plugin, fetched by scripts/fetch_openxr_vendors.sh
+godot/addons/godotopenxrvendors/
