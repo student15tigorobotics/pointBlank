@@ -85,7 +85,8 @@ func sell(t: TowerInstance, economy: BattleEconomy) -> int:
 func upgrade(t: TowerInstance, economy: BattleEconomy) -> bool:
 	if t.level >= Balance.MAX_TOWER_LEVEL:
 		return false
-	var cost: int = upgrade_cost(t)
+	# Upgrades are discounted like placements: round(upgrade_cost * tower_cost_mult).
+	var cost: int = _round_even(float(upgrade_cost(t)) * economy.tower_cost_mult)
 	if not economy.try_spend(cost):
 		return false
 	t.spent += cost

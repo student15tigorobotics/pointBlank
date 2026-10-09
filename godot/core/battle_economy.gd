@@ -32,7 +32,9 @@ func _init(mods: BattleModifiers) -> void:
 		var e: Dictionary = Balance.enemy(k)
 		_rewards.append(int(e["reward"]))
 		_core_damage.append(int(e["core_damage"]))
-	earn(mods.start_credits)
+	# Starting credits are a loadout, not income: they do not count toward earned_total.
+	if mods.start_credits > 0:
+		credits += mods.start_credits
 
 
 func core_destroyed() -> bool:

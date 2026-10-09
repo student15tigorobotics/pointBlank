@@ -30,10 +30,11 @@ static func submit(board: Array, entry: Dictionary) -> int:
 
 ## Deterministic callsign such as "NEON-RAVEN-42", so a seed can be stored per profile.
 ## Products are wrapped to 32-bit signed to reproduce C# int overflow exactly.
+## posmod keeps every index in range for negative seeds and for int.MIN (no abs overflow).
 static func callsign(seed_value: int) -> String:
-	var a: int = absi(_wrap32(seed_value * 31)) % ADJECTIVES.size()
-	var n: int = absi(_wrap32(seed_value * 17 + 5)) % NOUNS.size()
-	var num: int = absi(_wrap32(seed_value * 7919)) % 90 + 10
+	var a: int = posmod(_wrap32(seed_value * 31), ADJECTIVES.size())
+	var n: int = posmod(_wrap32(seed_value * 17 + 5), NOUNS.size())
+	var num: int = posmod(_wrap32(seed_value * 7919), 90) + 10
 	return ADJECTIVES[a] + "-" + NOUNS[n] + "-" + str(num)
 
 

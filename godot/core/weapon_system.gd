@@ -118,9 +118,12 @@ func _fire_rail(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, eco
 	for i in range(swarm.high_water):
 		if not swarm.alive[i]:
 			continue
-		# Inlined V3.RayDistance: closest point on the ray with t clamped to >= 0.
+		# Inlined V3.RayDistance. An enemy behind the origin is off the rail even when it is
+		# within radius of the origin, so the raw projection must not be negative.
 		var p: Vector3 = _pos(swarm, i)
-		var t: float = maxf(0.0, (p - o).dot(d))
+		var t: float = (p - o).dot(d)
+		if t < 0.0:
+			continue
 		var perp: float = (p - (o + d * t)).length()
 		if t > reach or perp > radius:
 			continue
@@ -157,9 +160,11 @@ func _fire_nova(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, eco
 	# Land on the table plane where the aim line crosses it, otherwise at max range.
 	var reach: float = _w_range[kind]
 	var radius: float = _w_radius[kind]
+	# The table-plane hit is used only when it lies ahead of the origin (t > 0).
+	var plane_t: float = (-o.y / d.y) if d.y < -0.05 else 0.0
 	var impact: Vector3
-	if d.y < -0.05:
-		impact = o + d * minf(-o.y / d.y, reach * 1.5)
+	if plane_t > 0.0:
+		impact = o + d * minf(plane_t, reach * 1.5)
 	else:
 		impact = o + d * reach
 	impact.y = 0.0

@@ -49,7 +49,9 @@ func call_early(bonus_mult: float, economy: BattleEconomy) -> int:
 
 ## Advances timers and appends the EnemyKind ints to spawn this frame to spawns.
 ## alive is the swarm's live count before this frame's spawns are applied.
-func update(dt: float, alive: int, spawns: Array) -> void:
+## room is how many more entries this frame may add (the caller's free enemy slots, counting
+## spawns already in the list). Spawns that do not fit stay pending and are emitted on a later frame.
+func update(dt: float, alive: int, spawns: Array, room: int = 1000000) -> void:
 	just_cleared = false
 	if phase == Phase.FINISHED:
 		return
@@ -61,14 +63,16 @@ func update(dt: float, alive: int, spawns: Array) -> void:
 		return
 
 	_wave_time += dt
+	var budget: int = room - spawns.size()
 	var all_emitted: bool = true
 	for g in range(_g_count.size()):
 		var kind: int = _g_kind[g]
 		var total: int = _g_count[g]
-		while _emitted[g] < total and _wave_time >= _next_spawn[g]:
+		while _emitted[g] < total and _wave_time >= _next_spawn[g] and budget > 0:
 			spawns.append(kind)
 			_emitted[g] += 1
 			_next_spawn[g] += _g_interval[g]
+			budget -= 1
 		if _emitted[g] < total:
 			all_emitted = false
 

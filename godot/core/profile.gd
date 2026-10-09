@@ -3,6 +3,8 @@ extends RefCounted
 ## Everything that persists between sessions. Port of Profile.cs.
 ## Serialise with to_dict() and rebuild with from_dict(); the save file layer (SaveStore) only handles JSON text.
 
+const GATE_PREFIX: String = "gate_"
+
 var version: int = 1
 var bank: int = 0
 var upgrade_levels: Array = []      # ints, length UpgradeCatalog.count()
@@ -14,7 +16,9 @@ var pending: Array = []             # CheatEffect names applied to the next batt
 var flags: Array = []               # dialogue choices
 var board: Array = []               # leaderboard entries, dicts {name, score, stage, date}
 var callsign_seed: int = 1
-var benchmark_max: int = 0
+var benchmark_max: int = 0          # sustained ALIVE count at the benchmark stop point
+var benchmark_visible: int = 0      # visible count at the benchmark stop point
+var benchmark_tier: int = -1        # graphics tier used at the stop point, -1 when none
 var tts_on: bool = true
 var quality: int = 1                # 0 low, 1 medium, 2 high
 var prologue_seen: bool = false
@@ -146,7 +150,15 @@ func record_stage(stage: int, stars_count: int, earned: int) -> Dictionary:
 
 
 func set_flag(flag: String) -> void:
-	if flag != "" and not flags.has(flag):
+	if flag == "":
+		return
+	if flag.begins_with(GATE_PREFIX):
+		# Only one gate flag at a time: drop the other gate flags before adding this one.
+		for i in range(flags.size() - 1, -1, -1):
+			var old: String = str(flags[i])
+			if old.begins_with(GATE_PREFIX) and old != flag:
+				flags.remove_at(i)
+	if not flags.has(flag):
 		flags.append(flag)
 
 
@@ -177,6 +189,8 @@ func to_dict() -> Dictionary:
 		"board": board.duplicate(true),
 		"callsign_seed": callsign_seed,
 		"benchmark_max": benchmark_max,
+		"benchmark_visible": benchmark_visible,
+		"benchmark_tier": benchmark_tier,
 		"tts_on": tts_on,
 		"quality": quality,
 		"prologue_seen": prologue_seen,
@@ -199,6 +213,8 @@ static func from_dict(d: Dictionary) -> Profile:
 	p.board = _board_of(d, "board")
 	p.callsign_seed = _int_of(d, "callsign_seed", 1)
 	p.benchmark_max = _int_of(d, "benchmark_max", 0)
+	p.benchmark_visible = _int_of(d, "benchmark_visible", 0)
+	p.benchmark_tier = _int_of(d, "benchmark_tier", -1)
 	p.tts_on = _bool_of(d, "tts_on", true)
 	p.quality = _int_of(d, "quality", 1)
 	p.prologue_seen = _bool_of(d, "prologue_seen", false)

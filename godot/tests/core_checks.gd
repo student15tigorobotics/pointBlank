@@ -93,6 +93,12 @@ func _test_combat_and_economy() -> void:
 	_check(eco.core_hp == Balance.BASE_CORE_HP - 5, "brute leak costs 5 core hp")
 	_check(BattleEconomy.early_call_bonus(25.0, 1.0) == 250, "early call bonus is 10 credits per second remaining")
 	_check(BattleEconomy.stars(0.85, true) == 3 and BattleEconomy.stars(0.5, true) == 2 and BattleEconomy.stars(0.1, true) == 1 and BattleEconomy.stars(1.0, false) == 0, "star thresholds")
+	var mods_start := BattleModifiers.defaults()
+	mods_start.start_credits = 500
+	var eco_start := BattleEconomy.new(mods_start)
+	_check(eco_start.credits == 500 and eco_start.earned_total == 0, "starting credits are not counted as earned")
+	eco_start.earn(25)
+	_check(eco_start.credits == 525 and eco_start.earned_total == 25, "earned credits still count toward earned_total")
 
 
 func _test_swarm_and_waves() -> void:
@@ -148,6 +154,23 @@ func _test_swarm_and_waves() -> void:
 	var elapsed_ms: float = float(elapsed_us) / 1000.0
 	print("  info 200 frames of 5000-enemy steps: " + str(int(elapsed_ms)) + " ms total (" + ("%.3f" % (elapsed_ms / 200.0)) + " ms/frame on this host)")
 
+	# Spawn room: with no free slots nothing is emitted, and the pending spawns come out on a later frame.
+	var room_stage: Dictionary = StageCatalog.all()[0]
+	var room_total: int = room_stage["waves"][0]["total_count"]
+	var room_director := WaveDirector.new(room_stage)
+	room_director.call_early(1.0, BattleEconomy.new(BattleModifiers.defaults()))
+	var room_spawns: Array = []
+	for _pass in 5:
+		room_director.update(1000.0, 0, room_spawns, 0)
+	_check(room_spawns.is_empty() and room_director.phase == WaveDirector.Phase.ACTIVE, "zero spawn room emits nothing and keeps the wave pending")
+	room_director.update(1000.0, 0, room_spawns)
+	_check(room_spawns.size() == room_total, "pending spawns are emitted on a later frame once room is free")
+	var limited_director := WaveDirector.new(room_stage)
+	limited_director.call_early(1.0, BattleEconomy.new(BattleModifiers.defaults()))
+	var limited_spawns: Array = []
+	limited_director.update(1000.0, 0, limited_spawns, 3)
+	_check(limited_spawns.size() == mini(3, room_total), "room caps the spawns emitted in one frame")
+
 
 func _test_weapons() -> void:
 	print("Weapons")
@@ -172,6 +195,45 @@ func _test_weapons() -> void:
 	var rail_hits: int = weapons.try_fire(Balance.WeaponKind.RAIL, Vector3(0.0, 0.0, 0.0), Vector3(0.0, 0.0, 1.0), s3, eco4, shots)
 	_check(rail_hits >= 1 and s3.alive[ahead] == 1, "rail line damages enemies along the line")
 	_check(s3.alive[off_axis] == 1, "rail ignores enemies off the line")
+
+	# Rail: an enemy behind the origin is ignored even when it sits inside the radius of the origin.
+	var rail_swarm := Swarm.new(BattlePath.new(stage["path"]), 10)
+	var rail_eco := BattleEconomy.new(BattleModifiers.defaults())
+	var behind: int = rail_swarm.spawn(Balance.EnemyKind.DRONE, 1.0, 0.1)
+	rail_swarm.x[behind] = 0.0
+	rail_swarm.y[behind] = 0.0
+	rail_swarm.z[behind] = -0.01
+	var in_front: int = rail_swarm.spawn(Balance.EnemyKind.DRONE, 1.0, 0.1)
+	rail_swarm.x[in_front] = 0.0
+	rail_swarm.y[in_front] = 0.0
+	rail_swarm.z[in_front] = 0.5
+	var rail_shots: Array = []
+	var rail_only := WeaponSystem.new()
+	var rail_only_hits: int = rail_only.try_fire(Balance.WeaponKind.RAIL, Vector3(0.0, 0.0, 0.0), Vector3(0.0, 0.0, 1.0), rail_swarm, rail_eco, rail_shots)
+	_check(rail_swarm.alive[behind] == 1 and rail_swarm.alive[in_front] == 0 and rail_only_hits == 1, "rail ignores enemies behind the origin")
+
+	# Nova: the table-plane hit is used when it lies ahead of the origin.
+	var nova_swarm := Swarm.new(BattlePath.new(stage["path"]), 10)
+	var nova_eco := BattleEconomy.new(BattleModifiers.defaults())
+	var table_hit: int = nova_swarm.spawn(Balance.EnemyKind.DRONE, 1.0, 0.1)
+	nova_swarm.x[table_hit] = 0.0
+	nova_swarm.y[table_hit] = 0.0
+	nova_swarm.z[table_hit] = 0.0
+	var nova_shots: Array = []
+	var nova_table := WeaponSystem.new()
+	var nova_table_hits: int = nova_table.try_fire(Balance.WeaponKind.NOVA, Vector3(0.0, 0.5, 0.0), Vector3(0.0, -1.0, 0.0), nova_swarm, nova_eco, nova_shots)
+	_check(nova_table_hits == 1 and nova_swarm.alive[table_hit] == 0, "nova bursts where the aim crosses the table")
+
+	# Nova: when the table plane is behind the origin, the burst lands at origin + dir * range.
+	var nova_back_swarm := Swarm.new(BattlePath.new(stage["path"]), 10)
+	var nova_back_eco := BattleEconomy.new(BattleModifiers.defaults())
+	var range_hit: int = nova_back_swarm.spawn(Balance.EnemyKind.DRONE, 1.0, 0.1)
+	nova_back_swarm.x[range_hit] = 0.0
+	nova_back_swarm.y[range_hit] = 0.0
+	nova_back_swarm.z[range_hit] = 5.36
+	var nova_range := WeaponSystem.new()
+	var nova_range_hits: int = nova_range.try_fire(Balance.WeaponKind.NOVA, Vector3(0.0, -0.5, 0.0), Vector3(0.0, -0.5, 1.0), nova_back_swarm, nova_back_eco, nova_shots)
+	_check(nova_range_hits == 1 and nova_back_swarm.alive[range_hit] == 0, "nova falls back to origin + dir * range when the table is behind")
 
 
 func _test_towers() -> void:
@@ -201,6 +263,17 @@ func _test_towers() -> void:
 	_check(placed != null and towers.upgrade(placed, eco5) and placed.level == 2, "tower upgrades to level 2")
 	_check(placed != null and towers.sell(placed, eco5) > 0, "selling refunds part of the investment")
 
+	# Upgrade cost goes through the economy's tower cost multiplier: round(36 * 0.84) = 30.
+	var disc_mods := BattleModifiers.new()
+	disc_mods.tower_cost_mult = 0.84
+	disc_mods.start_credits = 500
+	var eco_disc := BattleEconomy.new(disc_mods)
+	var disc_towers := TowerField.new()
+	var disc_turret: TowerInstance = disc_towers.place(Balance.TowerKind.TURRET, 0.0, 0.0, 60, eco_disc)
+	var credits_before_upgrade: int = eco_disc.credits
+	var disc_upgraded: bool = disc_turret != null and disc_towers.upgrade(disc_turret, eco_disc)
+	_check(disc_upgraded and credits_before_upgrade - eco_disc.credits == 30, "level-1 turret upgrade costs round(36 * 0.84) = 30 with the tower cost multiplier")
+
 
 func _test_profile() -> void:
 	print("Profile, upgrades, cheats")
@@ -229,6 +302,30 @@ func _test_profile() -> void:
 	var arsenal: bool = prof.redeem("9001")["ok"]
 	_check(arsenal and prof.has_tower(Balance.TowerKind.SNIPER) and prof.has_weapon(Balance.WeaponKind.NOVA), "arsenal key unlocks every weapon and tower")
 
+	var gate_prof := Profile.new()
+	gate_prof.set_flag("gate_alpha")
+	gate_prof.set_flag("intro_seen")
+	gate_prof.set_flag("gate_beta")
+	_check(gate_prof.has_flag("gate_beta") and not gate_prof.has_flag("gate_alpha") and gate_prof.has_flag("intro_seen"), "only one gate flag is kept and other flags are untouched")
+	gate_prof.set_flag("gate_beta")
+	_check(gate_prof.flags.size() == 2, "setting the same gate flag again does not duplicate it")
+
+	var pend_prof := Profile.new()
+	pend_prof.pending = ["NOT_A_CHEAT", "OVERKILL_BOOST"]
+	var pend_mods: BattleModifiers = pend_prof.consume_battle_modifiers()
+	_check(absf(pend_mods.overkill_ratio - Balance.BASE_OVERKILL_RATIO * 2.0) < EPS and pend_prof.pending.is_empty(), "unknown pending names are ignored and the queue is cleared")
+
+	var bench_prof := Profile.new()
+	bench_prof.benchmark_max = 2400
+	bench_prof.benchmark_visible = 1800
+	bench_prof.benchmark_tier = 2
+	var bench_back: Profile = Profile.from_dict(bench_prof.to_dict())
+	_check(bench_back.benchmark_max == 2400 and bench_back.benchmark_visible == 1800 and bench_back.benchmark_tier == 2, "benchmark alive, visible and tier survive a dict round trip")
+	var bench_json: Dictionary = {"benchmark_visible": 1800.0, "benchmark_tier": 2.0}
+	var bench_float: Profile = Profile.from_dict(bench_json)
+	_check(bench_float.benchmark_visible == 1800 and bench_float.benchmark_tier == 2, "benchmark numbers loaded from JSON floats become ints")
+	_check(Profile.new().benchmark_tier == -1 and Profile.from_dict({}).benchmark_tier == -1, "benchmark tier defaults to -1 when missing")
+
 
 func _test_leaderboard() -> void:
 	print("Leaderboard")
@@ -239,3 +336,4 @@ func _test_leaderboard() -> void:
 	_check(Leaderboard.submit(board, {"name": "low", "score": 10, "stage": 0, "date": ""}) == -1, "low score does not qualify")
 	_check(Leaderboard.submit(board, {"name": "mid", "score": 600, "stage": 0, "date": ""}) >= 0, "mid score ranks in")
 	_check(Leaderboard.callsign(42) == Leaderboard.callsign(42), "callsigns are deterministic")
+	_check(Leaderboard.callsign(-2147483648) == "NEON-SENTRY-62", "callsign for int.MIN uses posmod and stays in the word lists")
