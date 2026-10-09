@@ -9,7 +9,7 @@ const STOP_ABORTED: int = 3                 # benchmark stop code: aborted by th
 const BATTLE_CAP_MIN: int = 800
 const SMOKE_SIM_DT: float = 1.0 / 30.0
 const SMOKE_BENCH_DT: float = 1.0 / 120.0   # 8.3 ms, inside the 90 Hz budget, so the ramp is not cut short
-const SMOKE_BENCH_TICKS: int = 30 * 120
+const SMOKE_BENCH_TICKS: int = 100 * 120    # the benchmark stops at its 90 s time limit at the latest; the ramp can plateau below the cap
 const SMOKE_BATTLE_TICKS: int = 30 * 900
 
 ## Shared with hub.gd and dialogue.gd. They read and write these fields directly.
@@ -47,6 +47,7 @@ var _themes: Array = []
 var _stages: Array = []
 var _smoke_failures: int = 0
 var _smoke_played: bool = false
+var _smoke_finished: bool = false
 
 
 func _ready() -> void:
@@ -152,6 +153,11 @@ func apply_quality() -> void:
 
 func _process(delta: float) -> void:
 	if smoke_mode:
+		# _run_smoke quits itself when it finishes. A frame that arrives without that means it was aborted,
+		# for example by a script error, so exit with a failure instead of idling until the harness kills the process.
+		if not _smoke_finished:
+			print("SMOKE FAILED: self-test aborted before it finished (see the script error above)")
+			get_tree().quit(1)
 		return
 	var dt: float = minf(delta, 0.1)
 	controls.poll(get_viewport())
@@ -468,6 +474,7 @@ func _run_smoke() -> void:
 		"scripted battle reaches an outcome")
 	_check(battle.eco.kills > 100, "battle produces kills")
 	_check(max_visible > 0, "renderer draws enemies")
+	_check_buffer_layout()
 
 	# Benchmark path: ramp until the cap, then report.
 	start_benchmark()
@@ -485,5 +492,32 @@ func _run_smoke() -> void:
 		int(result.get("visible", 0)), bench * SMOKE_BENCH_DT, int(result.get("alive", 0)),
 		view.renderer.visible_total(), stop_code, BattleController.Outcome.keys()[battle.outcome]])
 
+	_smoke_finished = true
 	print("SMOKE PASSED" if _smoke_failures == 0 else "SMOKE FAILED: %d" % _smoke_failures)
 	get_tree().quit(0 if _smoke_failures == 0 else 1)
+
+
+## SwarmRenderer contract: one instance is 16 floats in the MultiMesh buffer, 12 row-major transform floats then 4 colour floats.
+## Writes a known transform and colour through the buffer and reads them back.
+func _check_buffer_layout() -> void:
+	if DisplayServer.get_name() == "headless":
+		# The dummy renderer keeps no instance storage, so get_instance_* read defaults. Runs on a real renderer only.
+		print("     skipped multimesh layout readback (headless has no instance storage)")
+		return
+	var mm: MultiMesh = MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.instance_count = 1
+	mm.buffer = PackedFloat32Array([
+		2.0, 0.0, 0.0, 1.0,
+		0.0, 2.0, 0.0, 2.0,
+		0.0, 0.0, 2.0, 3.0,
+		0.1, 0.2, 0.3, 1.0])
+	var xf: Transform3D = mm.get_instance_transform(0)
+	var col: Color = mm.get_instance_color(0)
+	var transform_ok: bool = xf.origin.is_equal_approx(Vector3(1.0, 2.0, 3.0)) \
+		and xf.basis.x.is_equal_approx(Vector3(2.0, 0.0, 0.0)) \
+		and xf.basis.y.is_equal_approx(Vector3(0.0, 2.0, 0.0)) \
+		and xf.basis.z.is_equal_approx(Vector3(0.0, 0.0, 2.0))
+	_check(transform_ok and col.is_equal_approx(Color(0.1, 0.2, 0.3, 1.0)),
+		"multimesh buffer layout: 12 transform floats then 4 colour floats")
