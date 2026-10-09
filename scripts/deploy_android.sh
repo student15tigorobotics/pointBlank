@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 tigo.robotics@gmail.com
+# This file is part of PointBlank Swarm.
+#
+# PointBlank Swarm is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software Foundation,
+# either version 3 of the License, or (at your option) any later version.
+#
+# It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; see the
+# GNU General Public License for more details. See the LICENSE file in the repository root.
 # Builds the Android APK for the VIVE XR Elite, installs it over adb, and launches it.
 #
 # Run this on your own machine. It needs:
