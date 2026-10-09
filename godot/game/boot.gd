@@ -218,8 +218,11 @@ func _clear_content() -> void:
 		child.queue_free()
 
 
-func show_hub(tab: String, message: String) -> void:
+## Any show_hub clears the RESET arming unless the reset button's own first press passes keep_arm.
+func show_hub(tab: String, message: String, keep_arm: bool = false) -> void:
 	_clear_content()
+	if not keep_arm:
+		reset_armed = false
 	state = "hub"
 	_apply_theme(_themes[0])
 	hub = Hub.new(self, tab, message)
@@ -378,6 +381,11 @@ func _on_result_continue(cleared: bool) -> void:
 func _play_outro() -> void:
 	_clear_content()
 	_outro_chapter = stage_index
+	# The final chapter's outro has one branch line per ending flag. Without either flag it would play nothing,
+	# so fall back to the seal ending and save it.
+	if _outro_chapter == StageCatalog.count() - 1 and not profile.has_flag("gate_seal") and not profile.has_flag("gate_harness"):
+		profile.set_flag("gate_seal")
+		save()
 	_apply_theme(_stages[_outro_chapter]["theme"])
 	state = "dialogue"
 	dialogue = Dialogue.new(voice, profile, Callable(self, "save"))

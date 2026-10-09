@@ -152,8 +152,9 @@ func _poll_xr() -> void:
 	tower_step = ls.x
 	_left_stick_armed = ls.y == 1
 
-	_xr_presses[0] = press_right
-	_xr_presses[1] = press_left
+	# An untracked pointer is invalid, so its press must not reach the UI either.
+	_xr_presses[0] = press_right and right_ptr.valid
+	_xr_presses[1] = press_left and left_ptr.valid
 
 
 func _poll_desktop(viewport: Viewport) -> void:
@@ -226,8 +227,17 @@ static func _stick_step(x: float, armed: bool) -> Vector2i:
 	return Vector2i(1 if x > 0.0 else -1, 0)
 
 
+## Copies the controller pose into the pointer. The pointer is valid only while the controller is tracked,
+## so a lost or put-down controller gives no ray and no hover.
 static func _set_pointer(p: Pointer, c: XRController3D) -> void:
 	var t: Transform3D = c.global_transform
 	p.origin = t.origin
 	p.dir = -t.basis.z
-	p.valid = true
+	p.valid = _controller_active(c)
+
+
+## XRController3D.get_is_active() reports whether the controller is tracked. Defaults to true if the method is missing.
+static func _controller_active(c: XRController3D) -> bool:
+	if c.has_method("get_is_active"):
+		return c.get_is_active()
+	return true

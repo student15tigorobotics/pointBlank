@@ -198,7 +198,8 @@ func to_dict() -> Dictionary:
 
 
 ## Tolerant load: missing or mistyped keys fall back to defaults, JSON numbers (floats) become ints,
-## and per-stage and per-upgrade arrays are resized to the catalog lengths.
+## and per-stage and per-upgrade arrays are resized to the catalog lengths. quality is clamped to 0..2 and
+## benchmark_tier to -1..2, so later tier-name lookups never index out of range.
 static func from_dict(d: Dictionary) -> Profile:
 	var p: Profile = Profile.new()
 	p.version = _int_of(d, "version", 1)
@@ -214,9 +215,9 @@ static func from_dict(d: Dictionary) -> Profile:
 	p.callsign_seed = _int_of(d, "callsign_seed", 1)
 	p.benchmark_max = _int_of(d, "benchmark_max", 0)
 	p.benchmark_visible = _int_of(d, "benchmark_visible", 0)
-	p.benchmark_tier = _int_of(d, "benchmark_tier", -1)
+	p.benchmark_tier = clampi(_int_of(d, "benchmark_tier", -1), -1, 2)
 	p.tts_on = _bool_of(d, "tts_on", true)
-	p.quality = _int_of(d, "quality", 1)
+	p.quality = clampi(_int_of(d, "quality", 1), 0, 2)
 	p.prologue_seen = _bool_of(d, "prologue_seen", false)
 	return p
 

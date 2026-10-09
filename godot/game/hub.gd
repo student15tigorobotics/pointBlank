@@ -187,7 +187,7 @@ func _key(key: String) -> void:
 func _build_options() -> void:
 	Ui.button(self, "VOICE  " + ("ON" if profile.tts_on else "OFF"), _p(0.0, 0.3), Vector2(1.1, 0.12), Ui.ACCENT,
 		Callable(self, "_toggle_voice"), 26)
-	Ui.button(self, "GRAPHICS  " + TIER_NAMES[profile.quality], _p(0.0, 0.12), Vector2(1.1, 0.12), Ui.ACCENT,
+	Ui.button(self, "GRAPHICS  " + TIER_NAMES[clampi(profile.quality, 0, TIER_NAMES.size() - 1)], _p(0.0, 0.12), Vector2(1.1, 0.12), Ui.ACCENT,
 		Callable(self, "_cycle_quality"), 26)
 	Ui.button(self, "SWARM BENCHMARK", _p(0.0, -0.06), Vector2(1.1, 0.12), Ui.ACCENT,
 		Callable(app, "start_benchmark"), 26)
@@ -235,7 +235,7 @@ func _toggle_passthrough() -> void:
 func _reset_campaign() -> void:
 	if not app.reset_armed:
 		app.reset_armed = true
-		app.show_hub("options", "Press again to wipe campaign progress")
+		app.show_hub("options", "Press again to wipe campaign progress", true)
 		return
 	app.reset_armed = false
 	profile.reset_campaign()
