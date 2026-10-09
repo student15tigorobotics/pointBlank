@@ -85,3 +85,15 @@ The on-screen ceiling is **not yet measured on hardware**. What the code does:
 - Balance numbers (wave sizes, costs, damage) are first-pass estimates. They have not been playtested.
 - Every speaker uses the same Piper voice. `Story.Speakers` stores a `VoiceSid` and `Speed` per character, but `Game/Voice.cs` does not pass them to Piper yet. Wiring them up needs a multi-speaker model and the CLI's speaker flag.
 - Leaderboard is local. There is no online service.
+
+## License
+
+Copyright (C) 2026 tigo.robotics@gmail.com
+
+PointBlank Swarm is free software: you can redistribute it and/or modify it under the terms of the
+GNU General Public License as published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+[GNU General Public License](LICENSE) for details.
