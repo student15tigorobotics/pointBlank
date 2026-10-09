@@ -2,6 +2,246 @@
   "manifest_version": 1,
   "project": "PointBlank Swarm",
   "project_license": "GPL-3.0-or-later",
-  "license_allowlist": ["CC0-1.0", "CC-BY-4.0", "MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "Public-Domain"],
-  "assets": []
+  "license_allowlist": [
+    "CC0-1.0",
+    "CC-BY-4.0",
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Public-Domain"
+  ],
+  "assets": [
+    {
+      "id": "sfx.shot.blaster",
+      "event": "blaster",
+      "url": "https://raw.githubusercontent.com/Mcamento8/open-game-sfx-index/main/audio/sci-fi-sounds/laserSmall_000.ogg",
+      "path": "godot/assets/audio/sfx.shot.blaster.ogg",
+      "sha256": "72b589eadd41781257ac859e4f4d030222e623390e4a1a83f6d05329a6e026f1",
+      "license": "CC0-1.0",
+      "author": "Kenney (kenney.nl)",
+      "source": "Kenney Sci-Fi Sounds, via Mcamento8/open-game-sfx-index (CC0 per its README)",
+      "notes": "Blaster shot. Laser pew."
+    },
+    {
+      "id": "sfx.shot.rail",
+      "event": "rail",
+      "url": "https://raw.githubusercontent.com/Mcamento8/open-game-sfx-index/main/audio/sci-fi-sounds/laserLarge_000.ogg",
+      "path": "godot/assets/audio/sfx.shot.rail.ogg",
+      "sha256": "a56d95794cd732d6c2d66ce488c14cf557fe526c282897c9a77675c2bd9b77e6",
+      "license": "CC0-1.0",
+      "author": "Kenney (kenney.nl)",
+      "source": "Kenney Sci-Fi Sounds, via Mcamento8/open-game-sfx-index (CC0 per its README)",
+      "notes": "Rail shot. Heavier laser, the closest stand-in for a rail or sniper zap."
+    },
+    {
+      "id": "sfx.shot.arc",
+      "event": "arc",
+      "url": "https://raw.githubusercontent.com/ctoth/claudio-soundpack-retro-arcade/master/source/raw/kenney/digital-audio/zap1.wav",
+      "path": "godot/assets/audio/sfx.shot.arc.wav",
+      "sha256": "13d6f0c9dd951122df77479085bcefb6a53c77eb73d28f39ed71ee7292f8c187",
+      "license": "CC0-1.0",
+      "author": "Kenney (kenney.nl)",
+      "source": "Kenney Digital Audio, via ctoth/claudio-soundpack-retro-arcade (README says CC0; the repo has no LICENSE file)",
+      "notes": "Electric arc. Closest stand-in; no crackle loop found."
+    },
+    {
+      "id": "sfx.shot.scatter",
+      "event": "scatter",
+      "url": "https://raw.githubusercontent.com/smaltra/soundix/main/packs/impact-sounds/Audio/impactPunch_heavy_000.ogg",
+      "path": "godot/assets/audio/sfx.shot.scatter.ogg",
+      "sha256": "b33a8f14068aec24ec69ba85e5e87fdc41228975f6a1a3e44a6e7d6fc3d9f8d8",
+      "license": "CC0-1.0",
+      "author": "Kenney (kenney.nl)",
+      "source": "Kenney Impact Sounds, via smaltra/soundix (CC0 per its INFO/licence)",
+      "notes": "PLACEHOLDER for the scatter blast: a heavy impact. No shotgun sound found."
+    },
+    {
+      "id": "sfx.explosion.nova",
+      "event": "nova",
+      "url": "https://raw.githubusercontent.com/Mcamento8/open-game-sfx-index/main/audio/sci-fi-sounds/lowFrequency_explosion_000.ogg",
+      "path": "godot/assets/audio/sfx.explosion.nova.ogg",
+      "sha256": "3cb48d86dab63140cfb9aaeea4d4a6846abaca5831d157d8adbec0490da26343",
+      "license": "CC0-1.0",
+      "author": "Kenney (kenney.nl)",
+      "source": "Kenney Sci-Fi Sounds, via Mcamento8/open-game-sfx-index (CC0 per its README)",
+      "notes": "Nova grenade detonation."
+    },
+    {
+      "id": "sfx.tower.place",
+      "event": "place",
+      "url": "https://raw.githubusercontent.com/ETdoFresh/kenney.nl/master/kenney_impactsounds/Audio/impactMetal_medium_000.ogg",
+      "path": "godot/assets/audio/sfx.tower.place.ogg",
+      "sha256": "a96f879fec0864a8938e0c745b6996a6c5679c16a234ce31a01cc995e8401003",
+      "license": "CC0-1.0",
+      "author": "Kenney (kenney.nl)",
+      "source": "Kenney Impact Sounds, via ETdoFresh/kenney.nl mirror (License.txt: CC0)",
+      "notes": "Tower placed. Metal construct thunk."
+    },
+    {
+      "id": "sfx.tower.upgrade",
+      "event": "upgrade",
+      "url": "https://raw.githubusercontent.com/ETdoFresh/kenney.nl/master/kenney_digitalaudio/Audio/powerUp1.ogg",
+      "path": "godot/assets/audio/sfx.tower.upgrade.ogg",
+      "sha256": "8c361b624b560c0bc30ea3063b71212bc30caebf425c9df2481c13b25561485c",
+      "license": "CC0-1.0",
+      "author": "Kenney (kenney.nl)",
+      "source": "Kenney Digital Audio, via ETdoFresh/kenney.nl mirror (License.txt: CC0)",
+      "notes": "Tower upgraded. Power-up chime."
+    },
+    {
+      "id": "sfx.tower.sell",
+      "event": "sell",
+      "url": "https://raw.githubusercontent.com/ETdoFresh/kenney.nl/master/kenney_rpgaudio/Audio/handleCoins.ogg",
+      "path": "godot/assets/audio/sfx.tower.sell.ogg",
+      "sha256": "8a91f969e932df709df80ee124d86a51389eed9b67f22e5e716bc2bbf60d8dab",
+      "license": "CC0-1.0",
+      "author": "Kenney (kenney.nl)",
+      "source": "Kenney RPG Audio, via ETdoFresh/kenney.nl mirror (License.txt: CC0)",
+      "notes": "Tower sold. Coin handling."
+    },
+    {
+      "id": "sfx.credits.overkill",
+      "event": "overkill",
+      "url": "https://raw.githubusercontent.com/ETdoFresh/kenney.nl/master/kenney_impactsounds/Audio/impactBell_heavy_000.ogg",
+      "path": "godot/assets/audio/sfx.credits.overkill.ogg",
+      "sha256": "94b8bb5f2d43ab65e4bcc32b28562416e9bc2c51d9fd4be1e333660ee52f977f",
+      "license": "CC0-1.0",
+      "author": "Kenney (kenney.nl)",
+      "source": "Kenney Impact Sounds, via ETdoFresh/kenney.nl mirror (License.txt: CC0)",
+      "notes": "Overkill credits. Bright bell."
+    },
+    {
+      "id": "sfx.core.damage",
+      "event": "core_damage",
+      "url": "https://raw.githubusercontent.com/smaltra/soundix/main/packs/impact-sounds/Audio/impactMetal_heavy_000.ogg",
+      "path": "godot/assets/audio/sfx.core.damage.ogg",
+      "sha256": "e07045693e4a2b3d165c424e3dab4c781d9ff8880a386880ac89a51315d7f831",
+      "license": "CC0-1.0",
+      "author": "Kenney (kenney.nl)",
+      "source": "Kenney Impact Sounds, via smaltra/soundix (CC0)",
+      "notes": "Core takes damage. Heavy metal thud."
+    },
+    {
+      "id": "sfx.wave.start",
+      "event": "wave_start",
+      "url": "https://raw.githubusercontent.com/smaltra/soundix/main/packs/retro-512/The%20Essential%20Retro%20Video%20Game%20Sound%20Effects%20Collection%20%5B512%20sounds%5D%20By%20Juhani%20Junkala/General%20Sounds/Alarms/Alarms/sfx_alarm_loop1.wav",
+      "path": "godot/assets/audio/sfx.wave.start.wav",
+      "sha256": "c4db084ae8937ba36ca5069b2a38ce029d383b22ad8d7b3f70c006d4dd333304",
+      "license": "CC0-1.0",
+      "author": "Juhani Junkala",
+      "source": "The Essential Retro Video Game Sound Effects Collection [512 sounds], via smaltra/soundix (INFO.txt: CC0)",
+      "notes": "Wave start alarm (a loop file; play once)."
+    },
+    {
+      "id": "sfx.wave.clear",
+      "event": "wave_clear",
+      "url": "https://raw.githubusercontent.com/smaltra/soundix/main/packs/retro-512/The%20Essential%20Retro%20Video%20Game%20Sound%20Effects%20Collection%20%5B512%20sounds%5D%20By%20Juhani%20Junkala/General%20Sounds/Fanfares/sfx_sounds_fanfare1.wav",
+      "path": "godot/assets/audio/sfx.wave.clear.wav",
+      "sha256": "f66509a79af67f2cc3efd3c524d54809c2be2235bf27562e5d6fd0542c2fcad3",
+      "license": "CC0-1.0",
+      "author": "Juhani Junkala",
+      "source": "The Essential Retro Video Game Sound Effects Collection [512 sounds], via smaltra/soundix (INFO.txt: CC0)",
+      "notes": "Wave cleared fanfare."
+    },
+    {
+      "id": "sfx.victory",
+      "event": "victory",
+      "url": "https://raw.githubusercontent.com/smaltra/soundix/main/packs/music-jingles/Audio/Hit%20jingles/jingles_HIT00.ogg",
+      "path": "godot/assets/audio/sfx.victory.ogg",
+      "sha256": "e23d8c9e971a4e34484bc834a3ec1d560811ec6f5edd5efa2c61e583c18c504a",
+      "license": "CC0-1.0",
+      "author": "Kenney Vleugels (Kenney.nl)",
+      "source": "Kenney Music Jingles, via smaltra/soundix (License.txt: CC0)",
+      "notes": "Chapter victory sting."
+    },
+    {
+      "id": "sfx.defeat",
+      "event": "defeat",
+      "url": "https://raw.githubusercontent.com/Calinou/kenney-interface-sounds/master/addons/kenney_interface_sounds/error_001.wav",
+      "path": "godot/assets/audio/sfx.defeat.wav",
+      "sha256": "d77546b0baa89f37eca6b86f59b54a654ce5afe3d5a73492d0963168cc4ab5bf",
+      "license": "CC0-1.0",
+      "author": "Kenney (kenney.nl)",
+      "source": "Kenney Interface Sounds, via Calinou/kenney-interface-sounds (LICENSE.txt: CC0)",
+      "notes": "Defeat or core lost. Error tone."
+    },
+    {
+      "id": "sfx.ui.click",
+      "event": "ui_click",
+      "url": "https://raw.githubusercontent.com/Calinou/kenney-ui-audio/master/addons/kenney_ui_audio/click1.wav",
+      "path": "godot/assets/audio/sfx.ui.click.wav",
+      "sha256": "dd90b97f38b0ec7d52161d7c3bf8d61a66655766fd0af06439963351b4853a83",
+      "license": "CC0-1.0",
+      "author": "Kenney (kenney.nl)",
+      "source": "Kenney UI Audio, via Calinou/kenney-ui-audio (LICENSE.txt: CC0)",
+      "notes": "UI button press."
+    },
+    {
+      "id": "sfx.ui.hover",
+      "event": "ui_hover",
+      "url": "https://raw.githubusercontent.com/Calinou/kenney-ui-audio/master/addons/kenney_ui_audio/rollover1.wav",
+      "path": "godot/assets/audio/sfx.ui.hover.wav",
+      "sha256": "97de1348d22990014d9b5da4a2dedb6a070b324bb5966f7b4819eafa616b4a0c",
+      "license": "CC0-1.0",
+      "author": "Kenney (kenney.nl)",
+      "source": "Kenney UI Audio, via Calinou/kenney-ui-audio (LICENSE.txt: CC0)",
+      "notes": "UI hover tick."
+    },
+    {
+      "id": "sfx.dialogue.blip",
+      "event": "dialogue_blip",
+      "url": "https://raw.githubusercontent.com/Calinou/kenney-interface-sounds/master/addons/kenney_interface_sounds/tick_001.wav",
+      "path": "godot/assets/audio/sfx.dialogue.blip.wav",
+      "sha256": "fee217e21731da4be1f0347fd2632296259b8bfdca343c936fe60dc64bce280e",
+      "license": "CC0-1.0",
+      "author": "Kenney (kenney.nl)",
+      "source": "Kenney Interface Sounds, via Calinou/kenney-interface-sounds (LICENSE.txt: CC0)",
+      "notes": "Dialogue typewriter blip."
+    },
+    {
+      "id": "sfx.early_call",
+      "event": "early_call",
+      "url": "https://raw.githubusercontent.com/Calinou/kenney-interface-sounds/master/addons/kenney_interface_sounds/confirmation_001.wav",
+      "path": "godot/assets/audio/sfx.early_call.wav",
+      "sha256": "f9d0ef5a5c740c2ac250ac3876db9e4340669044a5bf78ae09192918db3e2ebc",
+      "license": "CC0-1.0",
+      "author": "Kenney (kenney.nl)",
+      "source": "Kenney Interface Sounds, via Calinou/kenney-interface-sounds (LICENSE.txt: CC0)",
+      "notes": "Early wave call confirmation."
+    },
+    {
+      "id": "music.battle",
+      "event": "music_battle",
+      "url": "https://raw.githubusercontent.com/0xabad1dea/glorytales/master/tracks/006-RhythmBattle-170BPM-loop.mp3",
+      "path": "godot/assets/audio/music.battle.mp3",
+      "sha256": "4ec031c44ecc4690f8fe16dd0823b1ee987394421779504f612119a66ec64d66",
+      "license": "CC-BY-4.0",
+      "author": "0xabad1dea (glorytales)",
+      "source": "glorytales, tracks/006-RhythmBattle-170BPM-loop.mp3, github.com/0xabad1dea/glorytales",
+      "notes": "Battle music loop. CC-BY-4.0: attribution required (see CREDITS.md)."
+    },
+    {
+      "id": "music.hub",
+      "event": "music_hub",
+      "url": "https://raw.githubusercontent.com/0xabad1dea/glorytales/master/tracks/002-StartMenuScreen-80BPM-loop.mp3",
+      "path": "godot/assets/audio/music.hub.mp3",
+      "sha256": "94bca53432f4f41392495644c5c18f5639ca7501545809a9b9d0f1af30c8c7f0",
+      "license": "CC-BY-4.0",
+      "author": "0xabad1dea (glorytales)",
+      "source": "glorytales, tracks/002-StartMenuScreen-80BPM-loop.mp3, github.com/0xabad1dea/glorytales",
+      "notes": "Hub and menu music loop. CC-BY-4.0: attribution required (see CREDITS.md)."
+    },
+    {
+      "id": "amb.battlefield",
+      "event": "ambient_hum",
+      "url": "https://raw.githubusercontent.com/lavenderdotpet/CC0-Public-Domain-Sounds/main/bb%20-%20Fans%20and%20Drones%20(Jul%202021)/Large%20Fan.wav",
+      "path": "godot/assets/audio/amb.battlefield.wav",
+      "sha256": "b1554aecf0cd5ac2eb78fb28a989f4b26ed35162cb247e660903797671c8ab32",
+      "license": "CC0-1.0",
+      "author": "lavenderdotpet",
+      "source": "CC0-Public-Domain-Sounds, bb - Fans and Drones folder, Large Fan.wav (repo LICENSE is CC0 1.0)",
+      "notes": "Low battlefield hum. Machine recording; play looped at low volume."
+    }
+  ]
 }

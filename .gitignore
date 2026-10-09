@@ -21,3 +21,6 @@ godot/addons/godotopenxrvendors/
 
 # Python bytecode caches
 __pycache__/
+
+# Downloaded audio, fetched by scripts/fetch_assets.py from godot/assets/manifest.json
+godot/assets/audio/
