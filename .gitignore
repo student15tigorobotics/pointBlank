@@ -1,0 +1,18 @@
+# Godot 4 (.NET) generated files
+godot/.godot/
+godot/.mono/
+godot/bin/
+godot/obj/
+godot/*.sln
+godot/*.csproj.user
+godot/export_presets.cfg
+
+# .NET test harness build output
+tests/**/bin/
+tests/**/obj/
+
+# Editor and OS noise
+.vscode/
+.idea/
+*.swp
+.DS_Store
