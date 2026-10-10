@@ -99,7 +99,7 @@ func _ready() -> void:
 	if _xr_on:
 		hands = Hands.new(controls.left, controls.right)
 		add_child(hands)
-		locomotion = Locomotion.new(controls.left, controls.right, content)
+		locomotion = Locomotion.new(controls.left, controls.right, content, xr_cam)
 
 	if smoke_mode:
 		_run_smoke()

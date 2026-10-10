@@ -10,37 +10,41 @@
 
 class_name Locomotion
 extends RefCounted
-## Two-handed "grab the world" movement for XR. Hold both grips to seize the world: moving
-## both hands together drags it, twisting them yaws it, and changing the distance between
-## them zooms (uniform scale, hands apart = zoom in). Click both thumbsticks to recenter.
+## Two-handed "grab the world" movement for XR, modelled on SurfaceForge2's proven scheme.
+## Hold both grips to seize the world: moving both hands together drags it, twisting them yaws
+## it (rate-clamped for comfort), and changing the distance between them zooms (uniform scale).
+## Click both thumbsticks to recenter.
 ##
 ## It transforms a world-root Node3D, never the player rig, so it never fights the headset's
-## own tracking. The whole similarity (translate + yaw + scale) is glued to the two hands with
-## one formula, so the world point under each hand stays under that hand until a clamp bites.
+## tracking. Per SF2's fix (owner 2026-10-10: midpoint-pivot drifted objects sideways and forced
+## refocusing), zoom and yaw pivot about the VISOR/head camera, so whatever you look at stays on
+## its gaze ray. Translation alone follows the hand midpoint, which is what a grab should feel like.
 
 const GRIP_ON: float = 0.6        # grip must pass this to start a grab (hysteresis high edge)
 const GRIP_OFF: float = 0.4       # grab ends when either grip drops below this
 const MIN_SCALE: float = 0.25     # smallest the world may shrink to (player feels giant)
 const MAX_SCALE: float = 5.0      # largest the world may grow to (player feels tiny)
 const MAX_OFFSET: float = 8.0     # metres the world root may stray from home, per axis
+const YAW_CLAMP: float = 0.14     # max world yaw per frame, radians (SF2 comfort limit)
 
 var _left: XRController3D
 var _right: XRController3D
 var _world: Node3D
+var _cam: Node3D                  # head camera; zoom and yaw pivot here
 var _active: bool = false
 var _recenter_down: bool = false
 
-# Grab anchors, captured when both grips first close.
-var _start_world: Transform3D = Transform3D.IDENTITY
-var _c0: Vector3 = Vector3.ZERO   # hand midpoint at grab start (world)
-var _d0: float = 1.0              # hand separation at grab start
-var _a0: float = 0.0              # hand-line yaw at grab start
+# Previous-frame gesture state, so each frame applies only its incremental change.
+var _prev_mid: Vector3 = Vector3.ZERO
+var _prev_dist: float = 1.0
+var _prev_yaw: float = 0.0
 
 
-func _init(left: XRController3D, right: XRController3D, world: Node3D) -> void:
+func _init(left: XRController3D, right: XRController3D, world: Node3D, cam: Node3D) -> void:
 	_left = left
 	_right = right
 	_world = world
+	_cam = cam
 
 
 ## Call every frame. Returns true while a grab is active, so the caller can swallow game input.
@@ -52,7 +56,7 @@ func update() -> bool:
 		_active = false
 		return false
 
-	# Recenter on both thumbstick clicks (edge). Handy if a zoom or drag leaves the world adrift.
+	# Recenter on both thumbstick clicks (edge). Rescues the world if a gesture leaves it adrift.
 	var rc: bool = _left.is_button_pressed("primary_click") and _right.is_button_pressed("primary_click")
 	if rc and not _recenter_down:
 		_world.transform = Transform3D.IDENTITY
@@ -68,24 +72,39 @@ func update() -> bool:
 
 	var pl: Vector3 = _left.global_transform.origin
 	var pr: Vector3 = _right.global_transform.origin
-	var c: Vector3 = (pl + pr) * 0.5
+	var mid: Vector3 = (pl + pr) * 0.5
 	var span: Vector3 = pr - pl
-	var d: float = maxf(span.length(), 0.02)
-	var a: float = atan2(span.x, span.z)
+	var dist: float = maxf(span.length(), 0.02)
+	var yaw: float = atan2(span.x, span.z)
 
 	if not _active:
 		_active = true
-		_start_world = _world.transform
-		_c0 = c
-		_d0 = d
-		_a0 = a
+		_prev_mid = mid
+		_prev_dist = dist
+		_prev_yaw = yaw
+		_pulse()
 		return true
 
-	var s: float = d / _d0
-	var dyaw: float = a - _a0
-	var basis := Basis(Vector3.UP, dyaw).scaled(Vector3(s, s, s))
-	var sim := Transform3D(basis, c - basis * _c0)
-	_world.transform = _clamp(sim * _start_world)
+	# Translation: the grabbed world follows the hands.
+	_world.global_position += mid - _prev_mid
+
+	var pivot: Vector3 = _cam.global_position if _cam != null else mid
+
+	# Zoom: incremental factor, clamped so the world can never be lost, pivoting on the head.
+	var cur_scale: float = _world.global_transform.basis.get_scale().x
+	if cur_scale > 1e-5:
+		var want: float = clampf(cur_scale * (dist / _prev_dist), MIN_SCALE, MAX_SCALE)
+		_scale_about(want / cur_scale, pivot)
+
+	# Yaw: twist both hands to turn, rate-limited so it can't whip the view.
+	var dyaw: float = clampf(wrapf(yaw - _prev_yaw, -PI, PI), -YAW_CLAMP, YAW_CLAMP)
+	if absf(dyaw) > 0.0001:
+		_yaw_about(dyaw, pivot)
+
+	_clamp_offset()
+	_prev_mid = mid
+	_prev_dist = dist
+	_prev_yaw = yaw
 	return true
 
 
@@ -99,19 +118,33 @@ func active() -> bool:
 	return _active
 
 
-## Keeps the world within scale and distance limits so a wild gesture can never lose it.
-func _clamp(t: Transform3D) -> Transform3D:
-	var scale: float = t.basis.get_scale().x
-	if scale > 1e-5:
-		var want: float = clampf(scale, MIN_SCALE, MAX_SCALE)
-		if not is_equal_approx(want, scale):
-			t.basis = t.basis.scaled(Vector3.ONE * (want / scale))
-	var o: Vector3 = t.origin
-	o.x = clampf(o.x, -MAX_OFFSET, MAX_OFFSET)
-	o.y = clampf(o.y, -MAX_OFFSET, MAX_OFFSET)
-	o.z = clampf(o.z, -MAX_OFFSET, MAX_OFFSET)
-	t.origin = o
-	return t
+## Scales the world by f about a world-space pivot (x' = pivot + f * (x - pivot)).
+func _scale_about(f: float, pivot: Vector3) -> void:
+	var s := Transform3D(Basis().scaled(Vector3(f, f, f)), pivot * (1.0 - f))
+	_world.global_transform = s * _world.global_transform
+
+
+## Rotates the world by angle about the vertical axis through a world-space pivot.
+func _yaw_about(angle: float, pivot: Vector3) -> void:
+	var r := Basis(Vector3.UP, angle)
+	var t := Transform3D(r, pivot - r * pivot)
+	_world.global_transform = t * _world.global_transform
+
+
+## Keeps the world root within reach so it cannot be dragged out of sight.
+func _clamp_offset() -> void:
+	var t: Transform3D = _world.transform
+	t.origin.x = clampf(t.origin.x, -MAX_OFFSET, MAX_OFFSET)
+	t.origin.y = clampf(t.origin.y, -MAX_OFFSET, MAX_OFFSET)
+	t.origin.z = clampf(t.origin.z, -MAX_OFFSET, MAX_OFFSET)
+	_world.transform = t
+
+
+## A short dual pulse marks the moment a grab takes hold, as SF2 does on zoom start.
+func _pulse() -> void:
+	if _left.has_method("trigger_haptic_pulse"):
+		_left.trigger_haptic_pulse("haptic", 0.0, 0.3, 0.02, 0.0)
+		_right.trigger_haptic_pulse("haptic", 0.0, 0.3, 0.02, 0.0)
 
 
 ## A controller counts only while it is actually tracked, so a put-down hand cannot grab.
