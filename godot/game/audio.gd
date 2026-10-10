@@ -44,6 +44,7 @@ const SFX: Dictionary = {
 	"defeat": "res://assets/audio/sfx.defeat.wav",
 }
 const MUSIC: Dictionary = {
+	"menu": "res://assets/audio/amb.menu.wav",   # plain sea & wind: the pregame calm
 	"hub": "res://assets/audio/music.hub.mp3",
 	"battle": "res://assets/audio/music.battle.mp3",
 }
@@ -144,6 +145,10 @@ func _set_music(track: String) -> void:
 		return
 	if s is AudioStreamMP3:
 		s.loop = true
+	elif s is AudioStreamWAV:
+		s.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		var frame_bytes: int = (2 if s.format == AudioStreamWAV.FORMAT_16_BITS else 1) * (2 if s.stereo else 1)
+		s.loop_end = s.data.size() / frame_bytes
 	_music.stream = s
 	_music.volume_db = -40.0
 	_music.play()

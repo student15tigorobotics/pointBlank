@@ -208,6 +208,16 @@ func _process(delta: float) -> void:
 	var ui_over: bool = Ui.update(controls.ui_pointers(), presses)
 	if hud_bar != null and is_instance_valid(hud_bar):
 		hud_bar.follow(xr_cam if _xr_on else desk_cam, dt)
+
+	# The hub menu swings around to stay in front of the player, so they never have to
+	# turn their body to find it (owner ask 2026-10-10). Rotating the hub root about the
+	# rig origin keeps the panel's own layout intact; the lerp keeps it calm.
+	if state == "hub" and hub != null and is_instance_valid(hub):
+		var cam: Node3D = xr_cam if _xr_on else desk_cam
+		var f: Vector3 = -cam.global_transform.basis.z
+		if absf(f.x) + absf(f.z) > 0.05:
+			var want: float = atan2(-f.x, -f.z)
+			hub.rotation.y = lerp_angle(hub.rotation.y, want, clampf(dt * 4.0, 0.0, 1.0))
 	if _xr_on and hands != null:
 		_update_hands()
 		if state == "battle" and battle != null:
@@ -370,14 +380,14 @@ func show_hub(tab: String, message: String, keep_arm: bool = false) -> void:
 	_apply_theme(_themes[0])
 	hub = Hub.new(self, tab, message)
 	content.add_child(hub)
-	Audio.music("hub")
+	Audio.music("menu")
 	Audio.ambient(false)
 
 
 func _play_prologue() -> void:
 	_clear_content()
 	state = "dialogue"
-	Audio.music("hub")
+	Audio.music("menu")
 	dialogue = Dialogue.new(voice, profile, Callable(self, "save"))
 	content.add_child(dialogue)
 	dialogue.play(Story.prologue(), Callable(self, "_on_prologue_done"))
@@ -484,7 +494,7 @@ func _end_battle(outcome: int) -> void:
 
 	_clear_content()
 	state = "result"
-	Audio.music("hub")
+	Audio.music("menu")
 	Audio.ambient(false)
 	Audio.play("victory" if cleared else "defeat")
 	_show_result(outcome, cleared, stars, score, rank, payout, revealed, eco)
