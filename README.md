@@ -1,7 +1,9 @@
 # PointBlank Swarm
 
 A VR tower-defence / swarm shooter for the **HTC VIVE XR Elite** (Android standalone, OpenXR).
-Built in Godot 4.7 with GDScript. Hold the line against thousands of polygon drones across six themed chapters.
+Built in Godot 4.7 with GDScript. Hold the line against thousands of polygon drones across twelve themed chapters.
+
+**Enjoying the game?** [♥ Support development via Stripe](https://buy.stripe.com/aFafZjeahanSe1f3CE9k400) — also reachable from the in-game OPTIONS tab.
 
 ## Target
 

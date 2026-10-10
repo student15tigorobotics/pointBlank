@@ -212,6 +212,9 @@ func _build_options() -> void:
 		Ui.button(self, "PASSTHROUGH  " + ("ON" if app.passthrough_on() else "OFF"), _p(0.0, -0.38), Vector2(1.1, 0.12), Ui.ACCENT,
 			Callable(self, "_toggle_passthrough"), 26)
 
+	Ui.button(self, "♥ SUPPORT THE DEV", _p(1.0, 0.3), Vector2(0.62, 0.12), Ui.GOLD,
+		Callable(self, "_open_donation"), 22)
+
 	var voice_ok: bool = app.voice_available()
 	Ui.label(self, "VOICE MODEL  " + ("FOUND" if voice_ok else "MISSING: run scripts/fetch_voice.py"), _p(0.0, -0.5), 22,
 		Color.WHITE if voice_ok else Ui.DIM)
@@ -226,6 +229,15 @@ func _build_options() -> void:
 	Ui.label(self, "RENDER  " + ("OPENXR HEADSET" if app.xr_active() else "DESKTOP PREVIEW"), _p(0.0, -0.72), 22, Color.WHITE)
 	Ui.label(self, "PASSTHROUGH PLUGIN  " + ("INSTALLED" if VrPassthrough.plugin_installed() else "MISSING: install godot_openxr_vendors v3.0.0+"),
 		_p(0.0, -0.83), 22, Color.WHITE)
+
+
+const DONATION_URL: String = "https://buy.stripe.com/aFafZjeahanSe1f3CE9k400"
+
+
+## Opens the Stripe donation page in the system browser (the headset's own on Android).
+func _open_donation() -> void:
+	OS.shell_open(DONATION_URL)
+	app.show_hub("options", "Donation page opened in the system browser. Thank you!")
 
 
 func _toggle_voice() -> void:
