@@ -168,9 +168,10 @@ func _apply_theme(t: Dictionary) -> void:
 	env.fog_enabled = true
 	env.fog_light_color = fog_color
 	env.fog_density = 0.015
+	# Kept gentle: stronger glow ballooned every emissive into view-filling auroras in VR.
 	env.glow_enabled = profile.quality > 0
-	env.glow_intensity = 0.7
-	env.glow_bloom = 0.05
+	env.glow_intensity = 0.35
+	env.glow_bloom = 0.02
 
 
 ## Applies the saved graphics tier to the governor and the glow setting. Called from the options page.

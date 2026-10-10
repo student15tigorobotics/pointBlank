@@ -64,6 +64,7 @@ var _tracer_life: PackedFloat32Array = PackedFloat32Array()
 var _tracer_next: int = 0
 var _style_mats: Array = []           # StandardMaterial3D per ShotStyle tint
 
+var _burst_mats: Array = []           # dimmer per-style materials for fireballs
 var _bursts: Array = []
 var _burst_life: PackedFloat32Array = PackedFloat32Array()
 var _burst_max: PackedFloat32Array = PackedFloat32Array()
@@ -123,12 +124,14 @@ func _init(stage_def: Dictionary) -> void:
 		var seg: MeshInstance3D = _add_part(_box(Vector3(0.02, 0.009, seg_len + 0.02)), path_mat, Vector3((x0 + x1) * 0.5, 0.0045, (z0 + z1) * 0.5))
 		seg.rotation = Vector3(0.0, yaw, 0.0)
 
-	# Spawn portal and core
+	# Spawn portal and core. Emission is kept low and the parts are shaded: the old bright
+	# unshaded emission (2.2) blew far past the glow bloom threshold, so the small core sphere
+	# bloomed into a giant white ball that swallowed the whole table corner (owner 2026-10-10).
 	var start_p: Vector3 = path.start()
-	_add_part(_cyl(0.09, 0.09, 0.005), Meshes.solid_material(accent, 1.2, false), Vector3(start_p.x, 0.003, start_p.z))
+	_add_part(_cyl(0.09, 0.09, 0.005), Meshes.solid_material(accent, 0.25), Vector3(start_p.x, 0.003, start_p.z))
 	var end_p: Vector3 = path.end()
-	_add_part(_sphere(0.08, 0.16), Meshes.solid_material(accent, 2.2, false), Vector3(end_p.x, 0.08, end_p.z))
-	_add_part(_cyl(0.14, 0.14, 0.004), Meshes.solid_material(accent, 0.9, false), Vector3(end_p.x, 0.004, end_p.z))
+	_add_part(_sphere(0.08, 0.16), Meshes.solid_material(accent, 0.3), Vector3(end_p.x, 0.08, end_p.z))
+	_add_part(_cyl(0.14, 0.14, 0.004), Meshes.solid_material(accent, 0.2), Vector3(end_p.x, 0.004, end_p.z))
 
 	# Buildable pads (instanced)
 	for ix in range(-7, 8):
@@ -176,6 +179,8 @@ func _build_fx(accent: Color) -> void:
 	]
 	for s in tints.size():
 		_style_mats.append(Meshes.solid_material(tints[s], 2.5, false))
+		# Bursts get dimmer twins: a fireball at tracer emission whites out into an aurora.
+		_burst_mats.append(Meshes.solid_material(tints[s], 1.1, false))
 
 	_base_mat = Meshes.solid_material(Color(0.12, 0.14, 0.2), 0.0)
 	_pip_mat = Meshes.solid_material(Color.WHITE, 2.0, false)
@@ -453,7 +458,7 @@ func _burst(at: Vector3, radius: float, life: float, style: int) -> void:
 	_burst_life[i] = life
 	_burst_max[i] = life
 	var node: MeshInstance3D = _bursts[i]
-	node.material_override = _style_mats[style]
+	node.material_override = _burst_mats[style]
 	node.visible = true
 
 

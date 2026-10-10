@@ -18,10 +18,12 @@ extends Node3D
 ## Buffer layout, 16 floats per instance: floats 0..11 are the transform as three rows of four
 ## (row i = basis row i, then origin[i]); floats 12..15 are the RGBA colour.
 
-const LOD_DISTANCE: float = 3.0       # metres from the eye: mesh inside, sprite outside
+const LOD_DISTANCE: float = 6.0       # metres from the eye: mesh inside, sprite outside. High on
+                                      # purpose: battles should be real meshes; sprites are the
+                                      # over-budget fallback (benchmark swarms), not the norm.
 const CULL_COS: float = 0.25          # about a 75 degree half-angle view cone, generous to avoid edge pop
 const STRIDE: int = 16
-const SPRITE_SCALE: float = 3.2
+const SPRITE_SCALE: float = 1.3       # was 3.2: oversized additive sprites bloomed into auroras
 const SHADE_SQUASH: float = 0.5
 const KIND_COUNT: int = 5
 

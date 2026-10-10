@@ -121,7 +121,9 @@ static func instanced_material(shaded: bool = true) -> StandardMaterial3D:
 	return m
 
 
-## Additive soft glow sprite, always facing the camera. Tinted per instance through vertex colour.
+## Soft round dot sprite, always facing the camera. Tinted per instance through vertex colour.
+## Normal alpha blending on purpose: additive blending stacked crowds into huge white "auroras"
+## that washed out the whole view (owner 2026-10-10).
 static func glow_material() -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = _get_glow_texture()
@@ -129,7 +131,7 @@ static func glow_material() -> StandardMaterial3D:
 	m.vertex_color_use_as_albedo = true
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	m.no_depth_test = false
