@@ -53,6 +53,8 @@ var _ring: MeshInstance3D
 var _ring_mesh: CylinderMesh
 var _ring_radius: float = -1.0
 var _tower_root: Node3D
+var _ghost: Node3D = null             # placement preview of the selected tower
+var _ghost_kind: int = -1
 var _tower_nodes: Dictionary = {}     # TowerInstance -> Node3D
 var _tower_levels: Dictionary = {}    # TowerInstance -> int, level the node was built at
 var _stale_scratch: Array = []        # reused by sync_towers
@@ -165,6 +167,10 @@ func _init(stage_def: Dictionary) -> void:
 	_tower_root = Node3D.new()
 	add_child(_tower_root)
 
+	# Space-opera chapters get a distant starfield dome for that star-wars feel.
+	if bool(theme.get("stars", false)):
+		_build_stars()
+
 	renderer = SwarmRenderer.new(theme, Balance.MAX_ENEMIES)
 	add_child(renderer)
 
@@ -173,9 +179,42 @@ func _init(stage_def: Dictionary) -> void:
 	# before the BattleController is created. The old world-anchored HUD window is gone.
 
 
+## A dome of faint stars far beyond the table. Deterministic layout (seeded) so screenshots
+## and replays always show the same sky.
+func _build_stars() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.instance_count = 260
+	var q := QuadMesh.new()
+	q.size = Vector2(1.0, 1.0)
+	mm.mesh = q
+	for i in mm.instance_count:
+		var yaw: float = rng.randf() * TAU
+		var pitch: float = rng.randf_range(-0.05, 1.35)
+		var r: float = rng.randf_range(7.0, 10.0)
+		var pos := Vector3(cos(pitch) * sin(yaw) * r, sin(pitch) * r, cos(pitch) * cos(yaw) * r)
+		var s: float = rng.randf_range(0.012, 0.035)
+		mm.set_instance_transform(i, Transform3D(Basis.IDENTITY.scaled(Vector3(s, s, s)), pos))
+		var b: float = rng.randf_range(0.4, 1.0)
+		mm.set_instance_color(i, Color(b, b, minf(1.0, b * 1.1)))
+	var node := MultiMeshInstance3D.new()
+	node.multimesh = mm
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.billboard_keep_scale = true
+	node.material_override = mat
+	add_child(node)
+
+
 func _build_fx(accent: Color) -> void:
+	# Index 0 is the player blaster bolt: green, star-wars style (owner ask 2026-10-10).
 	var tints: Array = [
-		Meshes.hex_color(0x3DFFEA), Meshes.hex_color(0xB84DFF), Meshes.hex_color(0x7FB8FF), Meshes.hex_color(0xFFD23F),
+		Meshes.hex_color(0x58FF5E), Meshes.hex_color(0xB84DFF), Meshes.hex_color(0x7FB8FF), Meshes.hex_color(0xFFD23F),
 		Color.WHITE, Meshes.hex_color(0xFF2EE6), Color.YELLOW, Meshes.hex_color(0x9BFF6A),
 	]
 	for s in tints.size():
@@ -300,6 +339,45 @@ func table_point(o: Vector3, d: Vector3) -> Array:
 	if _table_out[0]:
 		_table_out[1] = Vector2(hx, hz)
 	return _table_out
+
+
+## Translucent preview of the tower about to be placed, standing on the hovered pad. Rebuilt
+## only when the selected kind changes; otherwise it just moves.
+func show_tower_ghost(kind: int, at: Vector2) -> void:
+	if _ghost == null or _ghost_kind != kind:
+		if _ghost != null:
+			_ghost.queue_free()
+		_ghost = _build_ghost(kind)
+		_ghost_kind = kind
+		add_child(_ghost)
+	_ghost.position = Vector3(at.x, 0.0, at.y)
+	_ghost.visible = true
+
+
+func hide_tower_ghost() -> void:
+	if _ghost != null:
+		_ghost.visible = false
+
+
+func _build_ghost(kind: int) -> Node3D:
+	var root := Node3D.new()
+	var c: Color = _tower_color(kind)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(c.r, c.g, c.b, 0.4)
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	root.add_child(_make_part(_cyl(0.05, 0.06, 0.05), mat, Vector3(0.0, 0.025, 0.0)))
+	var head: Mesh
+	if kind == Balance.TowerKind.SNIPER:
+		head = _box(Vector3(0.035, 0.14, 0.035))
+	elif kind == Balance.TowerKind.MORTAR:
+		head = _cyl(0.06, 0.04, 0.06)
+	elif kind == Balance.TowerKind.TESLA or kind == Balance.TowerKind.FROST:
+		head = _sphere(0.045, 0.09)
+	else:
+		head = _box(Vector3(0.07, 0.07, 0.07))
+	root.add_child(_make_part(head, mat, Vector3(0.0, 0.11, 0.0)))
+	return root
 
 
 func set_hover_pad(index: int) -> void:

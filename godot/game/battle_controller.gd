@@ -300,6 +300,7 @@ func _handle_build(controls: Controls, ui_over: bool) -> void:
 	if benchmark or _tower_kinds.size() == 0:
 		view.set_hover_pad(-1)
 		view.hide_ring()
+		view.hide_tower_ghost()
 		return
 
 	var place_p: Pointer = controls.place_pointer()
@@ -316,12 +317,19 @@ func _handle_build(controls: Controls, ui_over: bool) -> void:
 
 	if pad >= 0:
 		view.show_ring(spot, _tower_range[tower_choice()])
+		# A translucent stand-in of the selected tower on the pad, so you see what you are
+		# about to build, not just its range (owner ask). Hidden the frame it becomes real.
+		if controls.place:
+			view.hide_tower_ghost()
+		else:
+			view.show_tower_ghost(tower_choice(), spot)
 		if controls.place and controls.sell:
 			_sell_near(spot)
 		elif controls.place:
 			_place_at(spot)
 		return
 
+	view.hide_tower_ghost()
 	if controls.place and controls.sell and place_p.valid and not ui_over:
 		var tp: Array = view.table_point(po, pd)
 		if tp[0]:

@@ -24,6 +24,8 @@ const LOD_DISTANCE: float = 6.0       # metres from the eye: mesh inside, sprite
 const CULL_COS: float = 0.25          # about a 75 degree half-angle view cone, generous to avoid edge pop
 const STRIDE: int = 16
 const SPRITE_SCALE: float = 1.3       # was 3.2: oversized additive sprites bloomed into auroras
+const BAR_WIDTH: float = 0.06         # health bar full width in metres
+const BAR_HEIGHT: float = 0.008
 const SHADE_SQUASH: float = 0.5
 const KIND_COUNT: int = 5
 
@@ -43,12 +45,14 @@ var _mm_0: MultiMesh
 var _mm_1: MultiMesh
 var _mm_2: MultiMesh
 var _mm_sprite: MultiMesh
+var _mm_bar: MultiMesh               # health bars over near (mesh LOD) enemies
 
 # Each buffer is written only by direct member index (_buf_0[o] = v). A local alias would make every write copy the array.
 var _buf_0: PackedFloat32Array = PackedFloat32Array()
 var _buf_1: PackedFloat32Array = PackedFloat32Array()
 var _buf_2: PackedFloat32Array = PackedFloat32Array()
 var _buf_sprite: PackedFloat32Array = PackedFloat32Array()
+var _buf_bar: PackedFloat32Array = PackedFloat32Array()
 
 
 func _init(theme: Dictionary = {}, cap: int = 0) -> void:
@@ -83,17 +87,29 @@ func _init(theme: Dictionary = {}, cap: int = 0) -> void:
 	var quad := QuadMesh.new()
 	quad.size = Vector2(1.0, 1.0)
 	_mm_sprite = _make_multimesh(quad, cap)
+	var bar_quad := QuadMesh.new()
+	bar_quad.size = Vector2(1.0, 1.0)
+	_mm_bar = _make_multimesh(bar_quad, cap)
 
 	_buf_0 = _zeroed(cap * STRIDE)
 	_buf_1 = _zeroed(cap * STRIDE)
 	_buf_2 = _zeroed(cap * STRIDE)
 	_buf_sprite = _zeroed(cap * STRIDE)
+	_buf_bar = _zeroed(cap * STRIDE)
 
 	var inst_mat: StandardMaterial3D = Meshes.instanced_material()
 	_add_node(_mm_0, inst_mat)
 	_add_node(_mm_1, inst_mat)
 	_add_node(_mm_2, inst_mat)
 	_add_node(_mm_sprite, Meshes.glow_material())
+	# Health bars: camera-facing solid quads, scale kept so each bar's width is its hp fraction.
+	var bar_mat := StandardMaterial3D.new()
+	bar_mat.vertex_color_use_as_albedo = true
+	bar_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	bar_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	bar_mat.billboard_keep_scale = true
+	bar_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_add_node(_mm_bar, bar_mat)
 
 
 ## Writes this frame's visible instances. eye and forward are in battlefield-local space.
@@ -103,6 +119,8 @@ func draw(swarm: Swarm, eye: Vector3, forward: Vector3) -> void:
 	var xs: PackedFloat32Array = swarm.x
 	var ys: PackedFloat32Array = swarm.y
 	var zs: PackedFloat32Array = swarm.z
+	var hps: PackedFloat32Array = swarm.hp
+	var max_hps: PackedFloat32Array = swarm.max_hp
 	var seeds: PackedFloat32Array = swarm.seed_v
 	var headings: PackedFloat32Array = swarm.heading
 	var high: int = swarm.high_water
@@ -192,6 +210,19 @@ func draw(swarm: Swarm, eye: Vector3, forward: Vector3) -> void:
 				_buf_2[o + 13] = g
 				_buf_2[o + 14] = b
 				_buf_2[o + 15] = 1.0
+			# Health bar above the body: width = hp fraction, colour slides green -> red.
+			var frac: float = clampf(hps[i] / maxf(max_hps[i], 0.001), 0.0, 1.0)
+			var bo: int = mesh_total * STRIDE
+			_buf_bar[bo] = BAR_WIDTH * frac
+			_buf_bar[bo + 3] = px
+			_buf_bar[bo + 5] = BAR_HEIGHT
+			_buf_bar[bo + 7] = py + sc + 0.035
+			_buf_bar[bo + 10] = 1.0
+			_buf_bar[bo + 11] = pz
+			_buf_bar[bo + 12] = 1.0 - frac * 0.8
+			_buf_bar[bo + 13] = frac
+			_buf_bar[bo + 14] = 0.12
+			_buf_bar[bo + 15] = 1.0
 			_counts[shape] = n + 1
 			mesh_total += 1
 		elif sprite_count < cap:
@@ -226,6 +257,9 @@ func draw(swarm: Swarm, eye: Vector3, forward: Vector3) -> void:
 	_mm_sprite.visible_instance_count = sprite_count
 	if sprite_count > 0:
 		_mm_sprite.buffer = _buf_sprite
+	_mm_bar.visible_instance_count = mesh_total
+	if mesh_total > 0:
+		_mm_bar.buffer = _buf_bar
 
 
 func visible_total() -> int:

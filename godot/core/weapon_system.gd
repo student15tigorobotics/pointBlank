@@ -82,8 +82,8 @@ func try_fire(kind: int, origin: Vector3, dir: Vector3, swarm: Swarm, economy: B
 	return _fire_nova(kind, origin, d, dmg, swarm, economy, shots)
 
 
-const BOLT_SPEED: float = 3.6     # m/s across the table; fast but visibly in flight
-const PELLET_SPEED: float = 2.8
+const BOLT_SPEED: float = 5.0     # m/s across the table; fast but visibly in flight
+const PELLET_SPEED: float = 3.8
 const SCATTER_SPREAD: float = 0.14  # radians of fan either side for scatter pellets
 
 func _fire_blaster(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: Array, proj: Projectiles) -> int:

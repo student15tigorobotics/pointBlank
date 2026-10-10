@@ -59,8 +59,12 @@ static func count() -> int:
 
 
 ## Procedural waves: the swarm grows each wave, brutes join late, a Titan closes every chapter.
+## Chapter 1 runs at reduced strength: it is the tutorial chapter and full-size waves made it
+## harder than chapter 2 in practice (owner feedback 2026-10-10).
 static func build_waves(stage_index: int, wave_count_value: int) -> Array:
 	var k: float = _f32(1.0 + _f32(_f32(0.35) * float(stage_index)))
+	if stage_index == 0:
+		k = _f32(0.65)
 	var out: Array = []
 	for w in range(wave_count_value):
 		var groups: Array = []
@@ -84,8 +88,9 @@ static func build_waves(stage_index: int, wave_count_value: int) -> Array:
 static func _build_themes() -> Array:
 	return [
 		{"kind": Balance.ThemeKind.SPACE_OPERA, "name": "Space Opera",
-			"enemy": [0x3DFFEA, 0xFFD23F, 0xFF4D6D, 0x7B61FF],
-			"accent": 0xE8F7FF, "fog": 0x05060F, "table": 0x0B1026, "grid": 0x2AF5FF},
+			"enemy": [0xD8DEE8, 0xFF3B30, 0x9BA3B5, 0x58A6FF],
+			"accent": 0xFFD86B, "fog": 0x010103, "table": 0x05070D, "grid": 0x24406B,
+			"stars": true},
 		{"kind": Balance.ThemeKind.METROPOLIS, "name": "Superhero Metropolis",
 			"enemy": [0xFF3B3B, 0x3B82FF, 0xFFE14D, 0xB84DFF],
 			"accent": 0xFF2E88, "fog": 0x0A0716, "table": 0x140B22, "grid": 0xFF2E88},
@@ -128,7 +133,7 @@ static func _build_stages() -> Array:
 			"theme": theme_list[s],
 			"path": paths[s],
 			"waves": build_waves(s, WAVES_PER_STAGE),
-			"hp_scale": _f32(1.0 + _f32(_f32(0.2) * float(s))),
+			"hp_scale": _f32(0.85) if s == 0 else _f32(1.0 + _f32(_f32(0.2) * float(s))),
 		})
 	return out
 

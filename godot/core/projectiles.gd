@@ -17,7 +17,7 @@ extends RefCounted
 ## `impacts` array passed to tick (triples are appended as flat [x, y, z, style] runs).
 
 const CAP: int = 96
-const HIT_RADIUS: float = 0.055
+const HIT_RADIUS: float = 0.09   # generous: bolts connect when visually close (owner ask)
 
 var alive_count: int = 0
 

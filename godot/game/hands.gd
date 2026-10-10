@@ -29,6 +29,7 @@ func _init(left: XRController3D, right: XRController3D) -> void:
 
 
 func _ready() -> void:
+	_build_gun(_controllers[0])
 	var beam_mesh := BoxMesh.new()
 	beam_mesh.size = Vector3(0.006, 0.006, 1.0)     # unit length along -z, scaled per frame
 	for i in _controllers.size():
@@ -51,6 +52,52 @@ func _ready() -> void:
 		dot.visible = false
 		add_child(dot)
 		_reticles.append(dot)
+
+
+## A low-poly blaster pistol on the weapon hand, barrel down the aim axis (-z), so the player
+## can see what they are shooting with. Built from primitives: receiver, barrel, emissive
+## muzzle (matching the green bolt tint), top sight and an angled grip.
+func _build_gun(hand: XRController3D) -> void:
+	var gun := Node3D.new()
+	var body := StandardMaterial3D.new()
+	body.albedo_color = Color(0.16, 0.17, 0.2)
+	body.roughness = 0.35
+	body.metallic = 0.6
+	var tip := StandardMaterial3D.new()
+	tip.albedo_color = Meshes.hex_color(0x58FF5E)
+	tip.emission_enabled = true
+	tip.emission = tip.albedo_color
+	tip.emission_energy_multiplier = 0.9
+
+	var receiver := BoxMesh.new()
+	receiver.size = Vector3(0.034, 0.044, 0.11)
+	gun.add_child(_part(receiver, body, Vector3(0.0, 0.012, -0.03), Vector3.ZERO))
+	var barrel := CylinderMesh.new()
+	barrel.top_radius = 0.011
+	barrel.bottom_radius = 0.011
+	barrel.height = 0.13
+	gun.add_child(_part(barrel, body, Vector3(0.0, 0.026, -0.14), Vector3(PI * 0.5, 0.0, 0.0)))
+	var muzzle := CylinderMesh.new()
+	muzzle.top_radius = 0.015
+	muzzle.bottom_radius = 0.015
+	muzzle.height = 0.016
+	gun.add_child(_part(muzzle, tip, Vector3(0.0, 0.026, -0.206), Vector3(PI * 0.5, 0.0, 0.0)))
+	var sight := BoxMesh.new()
+	sight.size = Vector3(0.01, 0.014, 0.05)
+	gun.add_child(_part(sight, body, Vector3(0.0, 0.041, -0.045), Vector3.ZERO))
+	var grip := BoxMesh.new()
+	grip.size = Vector3(0.028, 0.075, 0.034)
+	gun.add_child(_part(grip, body, Vector3(0.0, -0.035, 0.012), Vector3(-0.35, 0.0, 0.0)))
+	hand.add_child(gun)
+
+
+static func _part(mesh: Mesh, mat: Material, at: Vector3, rot: Vector3) -> MeshInstance3D:
+	var n := MeshInstance3D.new()
+	n.mesh = mesh
+	n.material_override = mat
+	n.position = at
+	n.rotation = rot
+	return n
 
 
 ## hits[i] is [valid: bool, length: float, world_pos: Vector3, near_ui: bool] per hand,

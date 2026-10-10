@@ -16,8 +16,8 @@ extends Node
 ## stay one-liners and are safe no-ops when audio is absent (headless smoke).
 
 const SFX_POOL: int = 10
-const MUSIC_DB: float = -9.0
-const AMBIENT_DB: float = -14.0
+const MUSIC_DB: float = -16.0    # background, not foreground (owner: music level too high)
+const AMBIENT_DB: float = -19.0
 const FADE_S: float = 0.8
 const THROTTLE_MS: int = 70     # same-sound minimum spacing, keeps mass deaths from clipping
 

@@ -88,7 +88,9 @@ func update() -> bool:
 	# Translation: the grabbed world follows the hands.
 	_world.global_position += mid - _prev_mid
 
-	var pivot: Vector3 = _cam.global_position if _cam != null else mid
+	# Zoom/yaw pivot on the point between the two hands — the grab itself (owner preference
+	# 2026-10-10 after trying head-pivot: "move by user visor center is not good").
+	var pivot: Vector3 = mid
 
 	# Zoom: incremental factor, clamped so the world can never be lost, pivoting on the head.
 	var cur_scale: float = _world.global_transform.basis.get_scale().x
