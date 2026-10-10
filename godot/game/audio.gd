@@ -18,6 +18,7 @@ extends Node
 const SFX_POOL: int = 10
 const MUSIC_DB: float = -16.0    # background, not foreground (owner: music level too high)
 const AMBIENT_DB: float = -19.0
+const MENU_DB: float = -23.0     # the menu sea sits well below music (owner: too intense)
 const FADE_S: float = 0.8
 const THROTTLE_MS: int = 70     # same-sound minimum spacing, keeps mass deaths from clipping
 
@@ -153,4 +154,4 @@ func _set_music(track: String) -> void:
 	_music.volume_db = -40.0
 	_music.play()
 	_fade = create_tween()
-	_fade.tween_property(_music, "volume_db", MUSIC_DB, FADE_S)
+	_fade.tween_property(_music, "volume_db", MENU_DB if track == "menu" else MUSIC_DB, FADE_S)
