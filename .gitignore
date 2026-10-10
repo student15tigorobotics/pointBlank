@@ -1,3 +1,7 @@
+# Build output and installed Android build template (regenerable)
+build/
+godot/android/
+
 # Godot 4 (.NET) generated files
 godot/.godot/
 godot/.mono/

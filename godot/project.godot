@@ -18,10 +18,15 @@ general/text_to_speech=true
 [rendering]
 
 renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
 textures/vram_compression/import_etc2_astc=true
 
 [xr]
 
 openxr/enabled=true
+openxr/startup_alert=false
 openxr/environment_blend_mode=0
-shaders/enabled=false
+openxr/reference_space=1
+openxr/foveation_level=2
+openxr/foveation_dynamic=true
+shaders/enabled=true
