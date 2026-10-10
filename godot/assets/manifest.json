@@ -213,24 +213,24 @@
     {
       "id": "music.battle",
       "event": "music_battle",
-      "url": "https://raw.githubusercontent.com/0xabad1dea/glorytales/master/tracks/006-RhythmBattle-170BPM-loop.mp3",
+      "url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Space%20Fighter%20Loop.mp3",
       "path": "godot/assets/audio/music.battle.mp3",
-      "sha256": "4ec031c44ecc4690f8fe16dd0823b1ee987394421779504f612119a66ec64d66",
+      "sha256": "8089835572af097ddb591db7ff0c7b7dab83f0fabf39eb27af76779a7cb54fa5",
       "license": "CC-BY-4.0",
-      "author": "0xabad1dea (glorytales)",
-      "source": "glorytales, tracks/006-RhythmBattle-170BPM-loop.mp3, github.com/0xabad1dea/glorytales",
-      "notes": "Battle music loop. CC-BY-4.0: attribution required (see CREDITS.md)."
+      "author": "Kevin MacLeod (incompetech.com)",
+      "source": "Space Fighter Loop, Kevin MacLeod, incompetech.com/music/royalty-free/",
+      "notes": "Battle music: driving orchestral space-combat loop. CC-BY-4.0: attribution required (see CREDITS.md)."
     },
     {
       "id": "music.hub",
       "event": "music_hub",
-      "url": "https://raw.githubusercontent.com/0xabad1dea/glorytales/master/tracks/002-StartMenuScreen-80BPM-loop.mp3",
+      "url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Fanfare%20for%20Space.mp3",
       "path": "godot/assets/audio/music.hub.mp3",
-      "sha256": "94bca53432f4f41392495644c5c18f5639ca7501545809a9b9d0f1af30c8c7f0",
+      "sha256": "a0f05d7bc8ffa08a4c1cc18003a2e69bd1a05e7d1b77a68cf1706c4e316390f6",
       "license": "CC-BY-4.0",
-      "author": "0xabad1dea (glorytales)",
-      "source": "glorytales, tracks/002-StartMenuScreen-80BPM-loop.mp3, github.com/0xabad1dea/glorytales",
-      "notes": "Hub and menu music loop. CC-BY-4.0: attribution required (see CREDITS.md)."
+      "author": "Kevin MacLeod (incompetech.com)",
+      "source": "Fanfare for Space, Kevin MacLeod, incompetech.com/music/royalty-free/",
+      "notes": "Hub/menu music: heroic orchestral space fanfare (star-wars vibe). CC-BY-4.0: attribution required (see CREDITS.md)."
     },
     {
       "id": "amb.battlefield",

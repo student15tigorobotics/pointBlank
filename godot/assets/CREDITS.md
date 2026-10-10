@@ -112,14 +112,14 @@ Generated from godot/assets/manifest.json by scripts/fetch_assets.py. Do not edi
 
 ## music.battle
 - File: `godot/assets/audio/music.battle.mp3`
-- Author: 0xabad1dea (glorytales)
-- Source: glorytales, tracks/006-RhythmBattle-170BPM-loop.mp3, github.com/0xabad1dea/glorytales
+- Author: Kevin MacLeod (incompetech.com)
+- Source: Space Fighter Loop, Kevin MacLeod, incompetech.com/music/royalty-free/
 - Licence: CC-BY-4.0 (attribution required)
 
 ## music.hub
 - File: `godot/assets/audio/music.hub.mp3`
-- Author: 0xabad1dea (glorytales)
-- Source: glorytales, tracks/002-StartMenuScreen-80BPM-loop.mp3, github.com/0xabad1dea/glorytales
+- Author: Kevin MacLeod (incompetech.com)
+- Source: Fanfare for Space, Kevin MacLeod, incompetech.com/music/royalty-free/
 - Licence: CC-BY-4.0 (attribution required)
 
 ## amb.battlefield
