@@ -31,6 +31,7 @@ var last_benchmark_aborted: bool = false
 var quality: Quality = Quality.new()
 
 var smoke_mode: bool = false
+var shots_mode: bool = false
 var load_status: String = "missing"
 var backup_path: String = ""
 
@@ -69,11 +70,12 @@ var _smoke_finished: bool = false
 func _ready() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	smoke_mode = args.has("--smoke")
-	var desktop: bool = smoke_mode or args.has("--desktop")
+	shots_mode = args.has("--shots")
+	var desktop: bool = smoke_mode or shots_mode or args.has("--desktop")
 	_themes = StageCatalog.themes()
 	_stages = StageCatalog.all()
 
-	if smoke_mode:
+	if smoke_mode or shots_mode:
 		profile = Profile.new()
 	else:
 		var loaded: Dictionary = SaveStore.load_profile()
@@ -104,6 +106,9 @@ func _ready() -> void:
 
 	if smoke_mode:
 		_run_smoke()
+		return
+	if shots_mode:
+		_start_shots()
 		return
 	if not profile.prologue_seen:
 		_play_prologue()
@@ -181,6 +186,9 @@ func _process(delta: float) -> void:
 		if not _smoke_finished:
 			print("SMOKE FAILED: self-test aborted before it finished (see the script error above)")
 			get_tree().quit(1)
+		return
+	if shots_mode:
+		_shots_frame()
 		return
 	var dt: float = minf(delta, 0.1)
 	controls.poll(get_viewport())
@@ -265,7 +273,7 @@ func _ray_hit(p: Pointer) -> Array:
 ## purchases, redeem, dialogue choices and options changes. Does nothing in smoke mode or while a corrupt save
 ## could not be backed up.
 func save() -> void:
-	if smoke_mode or _save_blocked:
+	if smoke_mode or shots_mode or _save_blocked:
 		return
 	if not SaveStore.save_profile(profile):
 		push_warning("Profile save failed")
@@ -500,6 +508,118 @@ func _on_outro_done() -> void:
 	var finale: bool = _outro_chapter == StageCatalog.count() - 1
 	show_hub("shop", "The Last Frequency is over. Thank you for playing." if finale
 		else "Chapter complete. Upgrades are open between chapters.")
+
+
+# ---- Screenshot tour (--shots, desktop preview) ----------------------------------------------
+# Walks the game's states and saves a PNG of each to /tmp/pb_shots. Run windowed on a desktop:
+#   godot --path godot --resolution 1280x720 -- --shots
+# Each step sets a state up (battles are simulated forward synchronously, like smoke), then a
+# few frames render it, then the viewport is captured and the tour advances.
+
+const SHOT_DIR: String = "/tmp/pb_shots"
+const SHOT_SETTLE_FRAMES: int = 10
+const SHOT_SIM_DT: float = 1.0 / 30.0
+
+var _shot_step: int = -1
+var _shot_timer: int = 0
+var _shot_names: Array = [
+	"01-hub-stages", "02-hub-shop", "03-story-dialogue",
+	"04-battle-ch1", "05-battle-mid", "06-battle-late", "07-benchmark-swarm",
+]
+
+
+func _start_shots() -> void:
+	for u in UnlockCatalog.all():
+		var key: String = u["key"]
+		if not profile.unlocks.has(key):
+			profile.unlocks.append(key)
+	profile.bank = 5000
+	DirAccess.make_dir_recursive_absolute(SHOT_DIR)
+	_shot_step = 0
+	_shot_timer = 0
+	_shots_setup(0)
+
+
+func _shots_frame() -> void:
+	_shot_timer += 1
+	if _shot_timer < SHOT_SETTLE_FRAMES:
+		return
+	var img: Image = get_viewport().get_texture().get_image()
+	img.save_png(SHOT_DIR + "/" + String(_shot_names[_shot_step]) + ".png")
+	print("SHOT ", _shot_names[_shot_step])
+	_shot_step += 1
+	if _shot_step >= _shot_names.size():
+		print("SHOTS DONE")
+		get_tree().quit(0)
+		return
+	_shot_timer = 0
+	_shots_setup(_shot_step)
+
+
+func _shots_setup(i: int) -> void:
+	controls.fire = false
+	controls.place = false
+	controls.call_wave = false
+	controls.upgrade = false
+	match i:
+		0:
+			show_hub("stages", "Welcome, Commander.")
+		1:
+			show_hub("shop", "")
+		2:
+			_clear_content()
+			state = "dialogue"
+			dialogue = Dialogue.new(voice, profile, Callable(self, "save"))
+			content.add_child(dialogue)
+			dialogue.play(Story.intro(0), Callable())
+			for n in 26:
+				dialogue.tick(0.05, false)
+		3:
+			_shots_battle(0, 24.0)
+		4:
+			_shots_battle(mini(3, _stages.size() - 1), 34.0)
+		5:
+			_shots_battle(mini(6, _stages.size() - 1), 42.0)
+		6:
+			start_benchmark()
+			for n in 6 * 90:
+				battle.tick(1.0 / 90.0, controls, false, Vector3(0.0, 1.5, 0.5), Vector3.FORWARD)
+
+
+## Builds a live battle on stage_i and simulates `seconds` of scripted play: constant fire,
+## tower placement, early wave calls — the same driving loop the smoke test uses.
+func _shots_battle(stage_i: int, seconds: float) -> void:
+	_clear_content()
+	var stage: Dictionary = _stages[stage_i]
+	_apply_theme(stage["theme"])
+	view = BattleView.new(stage)
+	content.add_child(view)
+	var mods: BattleModifiers = profile.consume_battle_modifiers()
+	quality.set_tier(profile.quality)
+	quality.enabled = true
+	battle = BattleController.new(view, profile, mods, false, quality)
+	state = "battle"
+
+	var ticks: int = int(seconds / SHOT_SIM_DT)
+	for t in ticks:
+		var tt: float = t * SHOT_SIM_DT
+		var target: Vector3 = BattleView.TABLE_CENTER + Vector3(0.9 * sin(tt * 0.5), 0.0, 0.9 * cos(tt * 0.37))
+		var origin: Vector3 = target + Vector3(0.0, 1.2, 0.6)
+		var dir: Vector3 = (target - origin).normalized()
+		controls.mouse_ptr.origin = origin
+		controls.mouse_ptr.dir = dir
+		controls.mouse_ptr.valid = true
+		controls.fire = true
+		controls.call_wave = t % 240 == 1
+		controls.place = t % 20 == 0
+		controls.upgrade = t % 150 == 0
+		battle.tick(SHOT_SIM_DT, controls, false, origin, dir)
+		if battle.outcome != BattleController.Outcome.RUNNING:
+			break
+	# One last discharge right before the capture frames so bolts hang mid-flight in the shot.
+	controls.place = false
+	controls.call_wave = false
+	controls.upgrade = false
 
 
 # ---- Headless self-test ---------------------------------------------------------------------

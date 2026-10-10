@@ -55,7 +55,8 @@ func _init(voice_ref: Voice, profile_ref: Profile, on_choice: Callable) -> void:
 	_portrait.mesh = sphere
 	_portrait.position = Vector3(-0.5, 0.28, 0.03)
 	add_child(_portrait)
-	_speaker = Ui.label(self, "", Vector3(-0.3, 0.3, 0.03), 36, Ui.ACCENT, 0.0013)
+	# Left-aligned beside the portrait disc; a centred label slid long names underneath it.
+	_speaker = Ui.label_left(self, "", Vector3(-0.41, 0.3, 0.03), 36, Ui.ACCENT)
 	_body = Ui.label(self, "", Vector3(0.0, 0.02, 0.03), 28, Color.WHITE, 0.0013)
 	_body.width = 800.0
 	_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
