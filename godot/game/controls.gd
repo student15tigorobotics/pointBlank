@@ -32,7 +32,9 @@ var mouse_ptr: Pointer = Pointer.new()
 
 # Held intents
 var fire: bool = false          # right trigger held (XR) / left mouse held (desktop)
+var fire_left: bool = false     # left trigger held (XR only; used when the left hand is a weapon)
 var sell: bool = false          # left grip held (XR) / shift held (desktop)
+var toggle_left: bool = false   # left X edge: switch the left hand between builder and weapon
 
 # Edge intents, true for the one frame they occur
 var press_right: bool = false   # right trigger edge, UI press for the right pointer
@@ -52,6 +54,7 @@ var _right_trigger_down: bool = false
 var _left_trigger_down: bool = false
 var _right_by_down: bool = false
 var _right_ax_down: bool = false
+var _left_ax_down: bool = false
 var _left_by_down: bool = false
 var _left_menu_down: bool = false
 var _left_stick_armed: bool = true
@@ -87,6 +90,7 @@ func poll(viewport: Viewport) -> void:
 	call_wave = false
 	advance = false
 	menu = false
+	toggle_left = false
 	press_right = false
 	press_left = false
 	press_mouse = false
@@ -147,6 +151,11 @@ func _poll_xr() -> void:
 	press_left = l_down and not _left_trigger_down
 	_left_trigger_down = l_down
 	place = press_left
+	fire_left = l_down
+
+	var l_ax: bool = left.is_button_pressed("ax_button")
+	toggle_left = l_ax and not _left_ax_down
+	_left_ax_down = l_ax
 
 	sell = left.get_float("grip") > GRIP_HELD or left.is_button_pressed("grip_click")
 
@@ -178,6 +187,7 @@ func _poll_desktop(viewport: Viewport) -> void:
 	var mm: bool = Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE)
 	var mr: bool = Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
 	fire = ml
+	fire_left = false
 	sell = Input.is_key_pressed(KEY_SHIFT)
 	press_mouse = ml and not _mouse_left_down
 	_mouse_left_down = ml

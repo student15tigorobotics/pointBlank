@@ -27,6 +27,8 @@ const WAVES_PER_STAGE: int = 8
 const TITLES: Array = [
 	"Starfall Reach", "Neon Ascendancy", "Midnight Harbor",
 	"Sands of the Scarab King", "Iron Pantheon", "The Last Frequency",
+	"Neo-Kyoto Drift", "Shibuya Rainfall", "Oni Protocol",
+	"Sakura Circuit", "Ronin Grid", "Tsukuyomi Gate",
 ]
 
 const SUBTITLES: Array = [
@@ -36,6 +38,12 @@ const SUBTITLES: Array = [
 	"Golden scarabs cross the Sun Gate for the first time.",
 	"A frozen rift shatters the gates of the Pantheon.",
 	"Every rift converges on one frequency.",
+	"The Tide reboots inside Neo-Kyoto's maglev loop.",
+	"Rain static hides them in the crossing crowds.",
+	"A demon-masked botnet walks the lantern alleys.",
+	"Petals fall; the circuit beneath them wakes.",
+	"A masterless swarm answers no daimyo.",
+	"The moon gate opens on the Tide's home node.",
 ]
 
 static var _themes_cache: Array = []
@@ -106,6 +114,27 @@ static func _build_themes() -> Array:
 		{"kind": Balance.ThemeKind.NEON_FUTURE, "name": "The Last Frequency",
 			"enemy": [0xFF00E6, 0x00FFF0, 0x7CFF00, 0xFF8A00],
 			"accent": 0x00FFF0, "fog": 0x04000A, "table": 0x0B0018, "grid": 0xFF00E6},
+		# Chapters 7-12: the Japanese-cyberpunk arc (owner ask 2026-10-10).
+		{"kind": Balance.ThemeKind.NEO_KYOTO, "name": "Neo-Kyoto Drift",
+			"enemy": [0xFF2E6C, 0x00E5FF, 0xB84DFF, 0xFFE14D],
+			"accent": 0xFF2E6C, "fog": 0x070210, "table": 0x0D041A, "grid": 0x00E5FF,
+			"stars": true},
+		{"kind": Balance.ThemeKind.NEO_KYOTO, "name": "Shibuya Rainfall",
+			"enemy": [0x66F0FF, 0xFF4DA6, 0xA0FFB0, 0x8E9BFF],
+			"accent": 0x00FFD1, "fog": 0x02070A, "table": 0x05121A, "grid": 0xFF4DA6},
+		{"kind": Balance.ThemeKind.NEO_KYOTO, "name": "Oni Protocol",
+			"enemy": [0xFFF3E0, 0xFF3B30, 0xFF8A00, 0xD8DEE8],
+			"accent": 0xFF3B30, "fog": 0x0A0304, "table": 0x160608, "grid": 0xFF8A00},
+		{"kind": Balance.ThemeKind.NEO_KYOTO, "name": "Sakura Circuit",
+			"enemy": [0xFFB7D0, 0xFF5EA8, 0xFFFFFF, 0xC77DFF],
+			"accent": 0xFFA7C4, "fog": 0x0C050B, "table": 0x1A0E16, "grid": 0xFF5EA8},
+		{"kind": Balance.ThemeKind.NEO_KYOTO, "name": "Ronin Grid",
+			"enemy": [0xA7C8FF, 0xE0E6F0, 0x5A78FF, 0x9BA3B5],
+			"accent": 0xA7C8FF, "fog": 0x030512, "table": 0x0A0F22, "grid": 0x5A78FF},
+		{"kind": Balance.ThemeKind.NEO_KYOTO, "name": "Tsukuyomi Gate",
+			"enemy": [0xE6E6FA, 0x9B6CFF, 0xFF2E6C, 0x58A6FF],
+			"accent": 0xE6E6FA, "fog": 0x050308, "table": 0x0E0A18, "grid": 0x9B6CFF,
+			"stars": true},
 	]
 
 
@@ -118,6 +147,13 @@ static func _build_paths() -> Array:
 		PackedFloat32Array([-1.4, -1.4, 1.2, -1.4, 1.2, 1.2, -0.9, 1.2, -0.9, -0.7, 0.5, -0.7, 0.5, 0.4, -0.2, 0.4]),
 		PackedFloat32Array([-1.4, 1.3, -0.6, 0.3, 0.2, -0.5, 1.1, -1.1, 1.3, 0.1, 0.0, 0.9, -0.8, 0.0]),
 		PackedFloat32Array([-1.4, -0.5, -0.7, -0.5, -0.2, 0.4, 0.5, 0.9, 1.3, 0.9, 1.3, -0.2, 0.4, -0.5, 0.1, -1.3]),
+		# Chapters 7-12 (Japanese-cyberpunk arc).
+		PackedFloat32Array([-1.4, 0.2, -0.8, 0.2, -0.8, -0.9, 0.3, -0.9, 0.3, 0.0, -0.3, 0.6, 0.6, 1.1, 1.2, 0.5]),
+		PackedFloat32Array([1.4, 0.9, 0.3, 0.9, 0.3, 0.1, 1.0, 0.1, 1.0, -0.8, -0.4, -0.8, -0.4, 0.3, -1.2, 0.3]),
+		PackedFloat32Array([-1.4, -1.0, 0.0, -1.0, 0.8, -0.4, 0.0, 0.2, 0.8, 0.8, -0.6, 0.8, -1.2, 0.2]),
+		PackedFloat32Array([0.0, -1.4, 0.0, -0.6, -0.9, -0.2, -0.9, 0.6, 0.2, 0.6, 0.9, 0.2, 0.9, 1.0, 0.0, 1.2]),
+		PackedFloat32Array([1.4, -1.2, 0.5, -0.7, -0.5, -1.0, -1.1, -0.2, -0.3, 0.3, -1.0, 0.9, 0.2, 1.2, 0.9, 0.6]),
+		PackedFloat32Array([-1.4, 1.2, -0.6, 1.2, 0.2, 0.6, 0.9, 1.0, 1.2, 0.3, 0.5, -0.3, 1.0, -0.9, 0.2, -1.2]),
 	]
 
 

@@ -34,9 +34,12 @@ static func make_label(text: String, font: int, color: Color, pixel: float = 0.0
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	l.double_sided = true
-	# Discard-mode alpha renders the glyphs in the opaque pass: on the mobile multiview
-	# renderer, alpha-blended labels could vanish behind opaque panels drawn later.
-	l.alpha_cut = Label3D.ALPHA_CUT_OPAQUE_PREPASS
+	# SF2's proven recipe for text on this headset: depth test off plus a high render
+	# priority, so glyphs can never z-fight or be swallowed by the surface they sit on
+	# (the opaque-prepass alpha cut still shimmered on device).
+	l.no_depth_test = true
+	l.render_priority = 20
+	l.outline_render_priority = 19
 	return l
 
 

@@ -39,7 +39,7 @@ var _cone_t: float = 0.0
 
 
 func _init() -> void:
-	for k in range(Balance.WeaponKind.NOVA + 1):
+	for k in range(Balance.WEAPON_LAST + 1):
 		var s: Dictionary = Balance.weapon(k)
 		_w_cooldown.append(float(s["cooldown"]))
 		_w_damage.append(float(s["damage"]))

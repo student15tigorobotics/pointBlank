@@ -210,6 +210,10 @@ func _process(delta: float) -> void:
 		hud_bar.follow(xr_cam if _xr_on else desk_cam, dt)
 	if _xr_on and hands != null:
 		_update_hands()
+		if state == "battle" and battle != null:
+			hands.set_arms(battle.weapon_kind(), battle.left_weapon_mode)
+		else:
+			hands.set_arms(Balance.WeaponKind.BLASTER, false)
 	if state == "dialogue":
 		if dialogue != null:
 			dialogue.tick(dt, controls.advance)

@@ -110,12 +110,15 @@ static func solid_material(color: Color, emission: float, shaded: bool = true) -
 
 
 ## Material for MultiMesh instances: each instance supplies its colour through the vertex colour channel.
+## Culling is off: the procedural polyhedra looked like they were missing faces on device
+## (winding vs the mobile renderer), and at these triangle counts double-siding is free.
 static func instanced_material(shaded: bool = true) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = Color.WHITE
 	m.vertex_color_use_as_albedo = true
 	m.roughness = 0.45
 	m.emission_enabled = false
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	if not shaded:
 		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	return m

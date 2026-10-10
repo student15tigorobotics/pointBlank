@@ -35,7 +35,7 @@ var _chain: PackedInt32Array = PackedInt32Array()
 
 
 func _init() -> void:
-	for k in range(Balance.TowerKind.SNIPER + 1):
+	for k in range(Balance.TOWER_LAST + 1):
 		var s: Dictionary = Balance.tower(k)
 		_cost.append(int(s["cost"]))
 		_range.append(float(s["range"]))
@@ -120,6 +120,9 @@ func pick(x: float, z: float, radius: float) -> TowerInstance:
 
 func tick(dt: float, swarm: Swarm, economy: BattleEconomy, shots: Array, grid: SpatialGrid) -> void:
 	for t: TowerInstance in towers:
+		# The vortex sucks continuously, independent of its pulse cooldown.
+		if t.kind == Balance.TowerKind.VORTEX:
+			_suck(t, dt, swarm, grid)
 		t.cooldown -= dt
 		if t.cooldown > 0.0:
 			continue
@@ -140,6 +143,29 @@ func tick(dt: float, swarm: Swarm, economy: BattleEconomy, shots: Array, grid: S
 			_fire_chain(t, dmg, swarm, economy, shots, grid)
 		elif k == Balance.TowerKind.FROST:
 			_fire_pulse(t, dmg, swarm, economy, shots, grid)
+		elif k == Balance.TowerKind.VORTEX:
+			_fire_vortex(t, swarm, economy, shots, grid)
+
+
+## Vortex pull: everything in range is dragged back along the path. Pull speed scales with level.
+func _suck(t: TowerInstance, dt: float, swarm: Swarm, grid: SpatialGrid) -> void:
+	var k: int = t.kind
+	var pull: float = _damage[k] * pow(Balance.TOWER_UPGRADE_DAMAGE, float(t.level - 1)) * dt
+	_collect(swarm, t.x, t.z, _range[k], grid)
+	for i in _scratch:
+		if not swarm.alive[i]:
+			continue
+		swarm.dist[i] = maxf(swarm.dist[i] - pull, 0.02)
+
+
+## Vortex pulse: a visual ping plus small chip damage to everything in range.
+func _fire_vortex(t: TowerInstance, swarm: Swarm, economy: BattleEconomy, shots: Array, grid: SpatialGrid) -> void:
+	var k: int = t.kind
+	shots.append(ShotStyle.make(_top(t), _top(t), _range[k], ShotStyle.Style.PULSE))
+	_collect(swarm, t.x, t.z, _range[k], grid)
+	var chip: float = 4.0 * damage_mult * pow(Balance.TOWER_UPGRADE_DAMAGE, float(t.level - 1))
+	for i in _scratch:
+		Combat.hit(swarm, i, chip, economy)
 
 
 # Turret: nearest enemy in range, one bolt.

@@ -14,9 +14,12 @@ extends RefCounted
 
 enum EnemyKind { DRONE, WALKER, SHADE, BRUTE, TITAN }
 enum MeshShape { TETRA, OCTA, ICOSA }
-enum WeaponKind { BLASTER, SCATTER, RAIL, ARC, NOVA }
-enum TowerKind { TURRET, TESLA, FROST, MORTAR, SNIPER }
-enum ThemeKind { SPACE_OPERA, METROPOLIS, NOIR_HARBOR, EGYPT, NORSE, NEON_FUTURE }
+enum WeaponKind { BLASTER, SCATTER, RAIL, ARC, NOVA, SABER, BOULDER }
+enum TowerKind { TURRET, TESLA, FROST, MORTAR, SNIPER, VORTEX }
+enum ThemeKind { SPACE_OPERA, METROPOLIS, NOIR_HARBOR, EGYPT, NORSE, NEON_FUTURE, NEO_KYOTO }
+
+const WEAPON_LAST: int = WeaponKind.BOULDER   # iterate WeaponKind with range(WEAPON_LAST + 1)
+const TOWER_LAST: int = TowerKind.VORTEX      # iterate TowerKind with range(TOWER_LAST + 1)
 
 # Logical battlefield: square of side 3 m centred on the table origin, table top at y = 0.
 const FIELD_HALF: float = 1.5
@@ -68,8 +71,15 @@ static func weapon(kind: int) -> Dictionary:
 			return {"name": "Rail", "cooldown": 1.1, "damage": 45.0, "range": 4.0, "cone_deg": 0.0, "radius": 0.05, "count": 999, "unlock_cost": 500}
 		WeaponKind.ARC:
 			return {"name": "Arc", "cooldown": 0.45, "damage": 9.0, "range": 5.0, "cone_deg": 6.0, "radius": 0.22, "count": 6, "unlock_cost": 700}
-		_:
+		WeaponKind.NOVA:
 			return {"name": "Nova", "cooldown": 1.5, "damage": 38.0, "range": 6.0, "cone_deg": 0.0, "radius": 0.22, "count": 1, "unlock_cost": 900}
+		WeaponKind.SABER:
+			# Melee: damage is per second to enemies touching the blade; radius = blade reach.
+			return {"name": "Saber", "cooldown": 0.0, "damage": 60.0, "range": 0.85, "cone_deg": 0.0, "radius": 0.07, "count": 99, "unlock_cost": 650}
+		_:
+			# Charged throw: hold the trigger to wind up, release to hurl. damage = crush per second
+			# while rolling over enemies; range = max roll distance at full charge.
+			return {"name": "Boulder", "cooldown": 0.9, "damage": 220.0, "range": 3.0, "cone_deg": 0.0, "radius": 0.07, "count": 99, "unlock_cost": 800}
 
 
 ## keys: name, cost, range, cooldown, damage, splash, slow, slow_seconds, chain
@@ -83,5 +93,9 @@ static func tower(kind: int) -> Dictionary:
 			return {"name": "Frost", "cost": 90, "range": 0.36, "cooldown": 0.5, "damage": 1.2, "splash": 0.0, "slow": 0.45, "slow_seconds": 1.2, "chain": 0}
 		TowerKind.MORTAR:
 			return {"name": "Mortar", "cost": 130, "range": 0.8, "cooldown": 2.2, "damage": 28.0, "splash": 0.18, "slow": 1.0, "slow_seconds": 0.0, "chain": 0}
-		_:
+		TowerKind.SNIPER:
 			return {"name": "Sniper", "cost": 170, "range": 1.1, "cooldown": 2.6, "damage": 190.0, "splash": 0.0, "slow": 1.0, "slow_seconds": 0.0, "chain": 0}
+		_:
+			# Vacuum: drags enemies in range back down the path (damage here = metres/second of
+			# pull, boosted by level) and chips them with a small pulse on each cooldown.
+			return {"name": "Vortex", "cost": 150, "range": 0.5, "cooldown": 1.6, "damage": 0.3, "splash": 0.0, "slow": 1.0, "slow_seconds": 0.0, "chain": 0}

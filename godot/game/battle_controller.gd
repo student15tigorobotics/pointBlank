@@ -46,8 +46,10 @@ var swarm: Swarm
 var director: WaveDirector
 var towers: TowerField
 var weapons: WeaponSystem
+var weapons_left: WeaponSystem       # independent cooldown for the dual-wield left hand
 var grid: SpatialGrid
 var projectiles: Projectiles
+var left_weapon_mode: bool = false   # left hand: false = builder, true = weapon (left X toggles)
 var benchmark: bool = false
 var outcome: int = Outcome.RUNNING
 var benchmark_result: Dictionary = {}     # {alive, visible, tier, stop} once the benchmark has ended
@@ -79,6 +81,13 @@ var _win_frames: int = 0
 var _impacts: Array = []                  # flat [x, y, z, style, killed] runs from Projectiles.tick
 var _prev_phase: int = WaveDirector.Phase.PREP
 var _prev_core_hp: int = -1
+var _muzzle_ptr: Array = [Pointer.new(), Pointer.new()]   # fire-origin scratch per hand
+var _charge: PackedFloat32Array = PackedFloat32Array([0.0, 0.0])  # boulder wind-up per hand
+var _was_fire: Array = [false, false]
+var _saber_sfx_cd: float = 0.0
+
+const MUZZLE_LEN: float = 0.21            # gun length: bolts leave from the muzzle tip
+const CHARGE_MAX: float = 1.2             # seconds to a full boulder wind-up
 
 
 func _init(view_ref: BattleView, profile_ref: Profile, mods: BattleModifiers, bench: bool, quality_ref: Quality) -> void:
@@ -91,20 +100,23 @@ func _init(view_ref: BattleView, profile_ref: Profile, mods: BattleModifiers, be
 	director = WaveDirector.new(view.stage)
 	towers = TowerField.new()
 	weapons = WeaponSystem.new()
+	weapons_left = WeaponSystem.new()
 	grid = SpatialGrid.new()
 	projectiles = Projectiles.new()
 	towers.damage_mult = mods.tower_damage_mult
 	weapons.damage_mult = mods.weapon_damage_mult
 	weapons.cooldown_mult = mods.weapon_cooldown_mult
+	weapons_left.damage_mult = mods.weapon_damage_mult
+	weapons_left.cooldown_mult = mods.weapon_cooldown_mult
 	_hp_scale = float(view.stage["hp_scale"])
 	_rng.seed = BENCH_SEED
 
 	# The benchmark fires only the blaster and builds nothing.
-	for k in Balance.WeaponKind.NOVA + 1:
+	for k in Balance.WEAPON_LAST + 1:
 		var owned: bool = (k == Balance.WeaponKind.BLASTER) if bench else profile_ref.has_weapon(k)
 		if owned:
 			_weapon_kinds.append(k)
-	for k in Balance.TowerKind.SNIPER + 1:
+	for k in Balance.TOWER_LAST + 1:
 		if not bench and profile_ref.has_tower(k):
 			_tower_kinds.append(k)
 		_tower_range.append(float(Balance.tower(k)["range"]))
@@ -176,22 +188,17 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 	grid.rebuild(swarm)
 	towers.tick(dt, swarm, eco, _shots, grid)
 	weapons.tick(dt)
+	weapons_left.tick(dt)
 
-	var aim: Pointer = controls.aim_pointer()
-	var local_aim: Array = view.local_ray(aim)
-	var aim_o: Vector3 = local_aim[0]
-	var aim_d: Vector3 = local_aim[1]
-	if aim.valid and controls.fire and not ui_over:
-		# ready() tells us the shot will actually discharge this frame (not blocked by cooldown).
-		var discharged: bool = weapons.ready()
-		var before: int = _shots.size()
-		var launched: int = weapons.try_fire(weapon_kind(), aim_o, aim_d, swarm, eco, _shots, projectiles)
-		if discharged:
-			Audio.play(_fire_sound(weapon_kind()), -2.0, 0.06)
-			# Instant weapons that connect with nothing draw nothing, so the trigger felt dead.
-			# Give such a discharge a muzzle tracer down the aim line. Bolt weapons always show.
-			if launched == 0 and _shots.size() == before:
-				view.shoot(ShotStyle.make(aim_o, aim_o + aim_d * MUZZLE_REACH, 0.0, ShotStyle.Style.BOLT))
+	if controls.toggle_left and not benchmark:
+		left_weapon_mode = not left_weapon_mode
+		view.float_text("LEFT: WEAPON" if left_weapon_mode else "LEFT: BUILDER", Vector3(0.0, CLEAR_TEXT_HEIGHT, 0.0), Ui.ACCENT)
+		Audio.play("ui.click")
+
+	# Weapon hands. The right hand always fires; the left fires too when toggled to weapon mode.
+	_fire_hand(0, controls.aim_pointer(), controls.fire, weapons, dt, ui_over)
+	if left_weapon_mode and not benchmark:
+		_fire_hand(1, controls.place_pointer(), controls.fire_left, weapons_left, dt, ui_over)
 
 	# Travelling bolts: advance, land hits, and show their impacts.
 	_impacts.clear()
@@ -217,8 +224,10 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 
 	_handle_build(controls, ui_over)
 
+	var aim: Pointer = controls.aim_pointer()
 	if controls.upgrade and aim.valid and not ui_over:
-		var tp: Array = view.table_point(aim_o, aim_d)
+		var local_aim: Array = view.local_ray(aim)
+		var tp: Array = view.table_point(local_aim[0], local_aim[1])
 		if tp[0]:
 			var xz: Vector2 = tp[1]
 			var t: TowerInstance = towers.pick(xz.x, xz.y, BUILD_PICK_RADIUS)
@@ -275,6 +284,84 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 		outcome = Outcome.CLEARED
 
 
+## One hand's weapon handling for this frame. hand: 0 = right, 1 = left. The fire origin is
+## pushed MUZZLE_LEN down the aim ray so bolts leave from the gun's muzzle tip, not the grip.
+func _fire_hand(hand: int, ptr: Pointer, held: bool, ws: WeaponSystem, dt: float, ui_over: bool) -> void:
+	var kind: int = weapon_kind()
+	var was: bool = _was_fire[hand]
+	_was_fire[hand] = held and ptr.valid and not ui_over
+	if not ptr.valid:
+		return
+	var mp: Pointer = _muzzle_ptr[hand]
+	mp.origin = ptr.origin + ptr.dir * MUZZLE_LEN
+	mp.dir = ptr.dir
+	mp.valid = true
+	var lr: Array = view.local_ray(mp)
+	var o: Vector3 = lr[0]
+	var d: Vector3 = lr[1]
+
+	if kind == Balance.WeaponKind.SABER:
+		if held and not ui_over:
+			_saber_slash(o, d, ws, dt)
+		return
+
+	if kind == Balance.WeaponKind.BOULDER:
+		var stats: Dictionary = Balance.weapon(kind)
+		if held and not ui_over and ws.ready():
+			_charge[hand] = minf(_charge[hand] + dt, CHARGE_MAX)
+		elif was and not (held and not ui_over) and _charge[hand] > 0.05 and ws.ready():
+			# Release: hurl the ball. Speed, arc and roll distance scale with the wind-up.
+			var t: float = _charge[hand] / CHARGE_MAX
+			var vel: Vector3 = d * lerpf(1.6, 4.4, t)
+			vel.y += lerpf(0.5, 1.1, t)
+			projectiles.fire_ball(o, vel, float(stats["range"]) * lerpf(0.35, 1.0, t),
+				float(stats["damage"]) * ws.damage_mult)
+			ws.cooldown = float(stats["cooldown"]) * ws.cooldown_mult
+			_charge[hand] = 0.0
+			Audio.play("shot.rail", -3.0, 0.1)
+		if not held:
+			_charge[hand] = 0.0
+		return
+
+	if held and not ui_over:
+		# ready() tells us the shot will actually discharge this frame (not blocked by cooldown).
+		var discharged: bool = ws.ready()
+		var before: int = _shots.size()
+		var launched: int = ws.try_fire(kind, o, d, swarm, eco, _shots, projectiles)
+		if discharged:
+			Audio.play(_fire_sound(kind), -2.0, 0.06)
+			# Instant weapons that connect with nothing draw nothing, so the trigger felt dead.
+			if launched == 0 and _shots.size() == before:
+				view.shoot(ShotStyle.make(o, o + d * MUZZLE_REACH, 0.0, ShotStyle.Style.BOLT))
+
+
+## Continuous plasma-saber damage: enemies near the blade line melt at damage-per-second.
+func _saber_slash(o: Vector3, d: Vector3, ws: WeaponSystem, dt: float) -> void:
+	var stats: Dictionary = Balance.weapon(Balance.WeaponKind.SABER)
+	var blade: float = float(stats["range"])
+	var dps: float = float(stats["damage"]) * ws.damage_mult
+	var reach: float = float(stats["radius"]) + 0.05
+	_saber_sfx_cd -= dt
+	var touched: bool = false
+	for s in [0.2, 0.5, 0.8]:
+		var p: Vector3 = o + d * (blade * float(s))
+		_impacts_scratch.clear()
+		_impacts_scratch = grid.collect(p.x, p.z, reach, _impacts_scratch)
+		for k in _impacts_scratch.size():
+			var e: int = _impacts_scratch[k]
+			var ey: float = swarm.y[e] - p.y
+			if absf(ey) > 0.12:
+				continue
+			Combat.hit(swarm, e, dps * dt, eco)
+			touched = true
+	if touched and _saber_sfx_cd <= 0.0:
+		_saber_sfx_cd = 0.18
+		Audio.play("shot.arc", -8.0, 0.2)
+
+
+var _impacts_scratch: PackedInt32Array = PackedInt32Array()
+
+
 ## SFX key for a weapon discharge. Nova shares the explosion sample; it is a burst weapon.
 static func _fire_sound(kind: int) -> String:
 	if kind == Balance.WeaponKind.SCATTER:
@@ -297,7 +384,8 @@ func _on_retreat_pressed() -> void:
 
 
 func _handle_build(controls: Controls, ui_over: bool) -> void:
-	if benchmark or _tower_kinds.size() == 0:
+	# A left hand in weapon mode fires instead of building; every build affordance sleeps.
+	if benchmark or _tower_kinds.size() == 0 or left_weapon_mode:
 		view.set_hover_pad(-1)
 		view.hide_ring()
 		view.hide_tower_ghost()
@@ -437,4 +525,5 @@ func _update_hud() -> void:
 	else:
 		view.hud_tower.text = "TOWER  none unlocked"
 	view.hud_weapon.text = "WEAPON  " + str(Balance.weapon(weapon_kind())["name"])
-	view.hud_note.text = "L-trig place  R-trig fire  L-grip sell  R-B upgrade   |   BOTH grips: move/zoom  sticks-click: recenter"
+	view.hud_note.text = ("L-trig FIRE (weapon mode)  L-X: builder  R-B upgrade   |   BOTH grips: move/zoom" if left_weapon_mode
+		else "L-trig place  R-trig fire  L-grip sell  L-X: left weapon  R-B upgrade   |   BOTH grips: move/zoom")

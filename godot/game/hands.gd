@@ -22,6 +22,8 @@ const DEFAULT_LEN: float = 2.5
 var _beams: Array = []          # MeshInstance3D per hand, child of that controller
 var _reticles: Array = []       # MeshInstance3D per hand, child of self (world space)
 var _controllers: Array = []    # XRController3D, ordered like Controls.ui_pointers(): [right, left]
+var _guns: Array = []           # gun prop per hand; left shown only in weapon mode
+var _blades: Array = []         # saber blade per hand, shown when the saber is selected
 
 
 func _init(left: XRController3D, right: XRController3D) -> void:
@@ -29,7 +31,11 @@ func _init(left: XRController3D, right: XRController3D) -> void:
 
 
 func _ready() -> void:
-	_build_gun(_controllers[0])
+	for c in _controllers:
+		_build_gun(c)
+	_guns[1].visible = false       # the left hand starts as the builder
+	_blades[0].visible = false
+	_blades[1].visible = false
 	var beam_mesh := BoxMesh.new()
 	beam_mesh.size = Vector3(0.006, 0.006, 1.0)     # unit length along -z, scaled per frame
 	for i in _controllers.size():
@@ -89,6 +95,33 @@ func _build_gun(hand: XRController3D) -> void:
 	grip.size = Vector3(0.028, 0.075, 0.034)
 	gun.add_child(_part(grip, body, Vector3(0.0, -0.035, 0.012), Vector3(-0.35, 0.0, 0.0)))
 	hand.add_child(gun)
+	_guns.append(gun)
+
+	# Plasma saber blade, emerging from the muzzle. Shown only while the saber is selected.
+	var blade := Node3D.new()
+	var core_mat := StandardMaterial3D.new()
+	core_mat.albedo_color = Color.WHITE
+	core_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var glow_mat := StandardMaterial3D.new()
+	glow_mat.albedo_color = Color(0.35, 1.0, 0.4, 0.4)
+	glow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var core := BoxMesh.new()
+	core.size = Vector3(0.014, 0.014, 0.78)
+	blade.add_child(_part(core, core_mat, Vector3(0.0, 0.026, -0.21 - 0.39), Vector3.ZERO))
+	var glow := BoxMesh.new()
+	glow.size = Vector3(0.03, 0.03, 0.8)
+	blade.add_child(_part(glow, glow_mat, Vector3(0.0, 0.026, -0.21 - 0.39), Vector3.ZERO))
+	hand.add_child(blade)
+	_blades.append(blade)
+
+
+## Weapon props per hand. kind drives the saber blade; left_weapon shows the left gun.
+func set_arms(kind: int, left_weapon: bool) -> void:
+	var saber: bool = kind == Balance.WeaponKind.SABER
+	_guns[1].visible = left_weapon
+	_blades[0].visible = saber
+	_blades[1].visible = saber and left_weapon
 
 
 static func _part(mesh: Mesh, mat: Material, at: Vector3, rot: Vector3) -> MeshInstance3D:

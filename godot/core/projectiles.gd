@@ -33,6 +33,15 @@ var damage: PackedFloat32Array = PackedFloat32Array()
 var style: PackedInt32Array = PackedInt32Array()
 var alive: PackedByteArray = PackedByteArray()
 
+var kind: PackedByteArray = PackedByteArray()   # 0 = bolt, 1 = rolling ball
+
+const KIND_BOLT: int = 0
+const KIND_BALL: int = 1
+const BALL_RADIUS: float = 0.05
+const BALL_GRAVITY: float = 6.0     # softened for table scale; real 9.8 made throws dive
+const BALL_FRICTION: float = 0.55   # fraction of speed lost per second while rolling
+const BALL_CRUSH_RADIUS: float = 0.11
+
 var _buf: PackedInt32Array = PackedInt32Array()
 var _next: int = 0
 
@@ -49,6 +58,7 @@ func _init() -> void:
 	damage.resize(CAP)
 	style.resize(CAP)
 	alive.resize(CAP)
+	kind.resize(CAP)
 
 
 ## Launches one bolt. The pool recycles the oldest slot when full, so firing never fails.
@@ -68,6 +78,29 @@ func fire(origin: Vector3, dir: Vector3, bolt_speed: float, flight_range: float,
 	left[i] = flight_range
 	damage[i] = dmg
 	style[i] = style_i
+	kind[i] = KIND_BOLT
+
+
+## Hurls a heavy ball: velocity vector (not unit), ballistic drop, then rolls along the table
+## crushing everything it touches for `crush_dps` damage per second. flight_range limits the
+## total distance travelled.
+func fire_ball(origin: Vector3, velocity: Vector3, flight_range: float, crush_dps: float) -> void:
+	var i: int = _next
+	_next = (_next + 1) % CAP
+	if alive[i] == 0:
+		alive_count += 1
+	alive[i] = 1
+	px[i] = origin.x
+	py[i] = origin.y
+	pz[i] = origin.z
+	dx[i] = velocity.x
+	dy[i] = velocity.y
+	dz[i] = velocity.z
+	speed[i] = 1.0
+	left[i] = flight_range
+	damage[i] = crush_dps
+	style[i] = ShotStyle.Style.SHELL
+	kind[i] = KIND_BALL
 
 
 ## Advances every bolt and lands hits. Appends [x, y, z, style, killed] per impact to `impacts`
@@ -77,6 +110,9 @@ func tick(dt: float, swarm: Swarm, grid: SpatialGrid, economy: BattleEconomy, im
 		return
 	for i in CAP:
 		if alive[i] == 0:
+			continue
+		if kind[i] == KIND_BALL:
+			_tick_ball(i, dt, swarm, grid, economy, impacts)
 			continue
 		var travel: float = speed[i] * dt
 		if travel > left[i]:
@@ -117,3 +153,37 @@ func tick(dt: float, swarm: Swarm, grid: SpatialGrid, economy: BattleEconomy, im
 			impacts.append(pz[i])
 			impacts.append(style[i])
 			impacts.append(killed)
+
+
+## One frame of a rolling ball: ballistic fall, floor roll with friction, continuous crush.
+func _tick_ball(i: int, dt: float, swarm: Swarm, grid: SpatialGrid, economy: BattleEconomy, impacts: Array) -> void:
+	dy[i] -= BALL_GRAVITY * dt
+	px[i] += dx[i] * dt
+	py[i] += dy[i] * dt
+	pz[i] += dz[i] * dt
+	var flat: float = sqrt(dx[i] * dx[i] + dz[i] * dz[i])
+	if py[i] <= BALL_RADIUS:
+		py[i] = BALL_RADIUS
+		if dy[i] < 0.0:
+			dy[i] = 0.0
+		var drag: float = maxf(1.0 - BALL_FRICTION * dt, 0.0)
+		dx[i] *= drag
+		dz[i] *= drag
+		flat *= drag
+	left[i] -= flat * dt
+
+	# Crush everything the ball touches; continuous dps melts small enemies on contact.
+	if swarm.alive_count > 0:
+		_buf.clear()
+		_buf = grid.collect(px[i], pz[i], BALL_CRUSH_RADIUS, _buf)
+		for k2 in _buf.size():
+			Combat.hit(swarm, _buf[k2], damage[i] * dt, economy)
+
+	if left[i] <= 0.0 or (py[i] <= BALL_RADIUS + 0.001 and flat < 0.12):
+		alive[i] = 0
+		alive_count -= 1
+		impacts.append(px[i])
+		impacts.append(py[i])
+		impacts.append(pz[i])
+		impacts.append(int(ShotStyle.Style.SHELL))
+		impacts.append(false)

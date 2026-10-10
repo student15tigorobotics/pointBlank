@@ -24,6 +24,7 @@ const PAD_SIZE: float = 0.16
 const TRACER_POOL: int = 160
 const BURST_POOL: int = 16
 const BOLT_POOL: int = 96
+const BALL_POOL: int = 8
 const LIGHT_POOL: int = 4
 const LIGHT_LIFE: float = 0.28
 const FLOAT_POOL: int = 24
@@ -80,6 +81,7 @@ var _float_at: PackedVector3Array = PackedVector3Array()
 var _float_next: int = 0
 
 var _bolts: Array = []                # MeshInstance3D pool for travelling projectiles
+var _balls: Array = []                # MeshInstance3D pool for thrown boulders
 var _lights: Array = []               # OmniLight3D pool for explosion flashes
 var _light_life: PackedFloat32Array = PackedFloat32Array()
 var _light_next: int = 0
@@ -105,8 +107,8 @@ func _init(stage_def: Dictionary) -> void:
 	var grid_mat: StandardMaterial3D = Meshes.solid_material(grid_c, 0.5, false)
 	for i in range(-7, 8):
 		var v: float = i * 0.2
-		_add_part(_box(Vector3(3.0, 0.004, 0.004)), grid_mat, Vector3(0.0, 0.002, v))
-		_add_part(_box(Vector3(0.004, 0.004, 3.0)), grid_mat, Vector3(v, 0.002, 0.0))
+		_add_part(_box(Vector3(3.0, 0.004, 0.004)), grid_mat, Vector3(0.0, 0.004, v))
+		_add_part(_box(Vector3(0.004, 0.004, 3.0)), grid_mat, Vector3(v, 0.004, 0.0))
 
 	# Lane ribbon along the path: a dim wide roadway (enemies weave across its width) with a
 	# bright centre line, so the walkable corridor reads at a glance.
@@ -121,19 +123,21 @@ func _init(stage_def: Dictionary) -> void:
 		var z1: float = pts[i * 2 + 3]
 		var seg_len: float = sqrt((x1 - x0) * (x1 - x0) + (z1 - z0) * (z1 - z0))
 		var yaw: float = atan2(x1 - x0, z1 - z0)
-		var road: MeshInstance3D = _add_part(_box(Vector3(road_w, 0.006, seg_len + road_w)), road_mat, Vector3((x0 + x1) * 0.5, 0.003, (z0 + z1) * 0.5))
+		# Layer heights are spread by >=5 mm: near-coplanar stacks z-fight into shimmering
+		# lines at VR depth precision (owner report 2026-10-10).
+		var road: MeshInstance3D = _add_part(_box(Vector3(road_w, 0.006, seg_len + road_w)), road_mat, Vector3((x0 + x1) * 0.5, 0.012, (z0 + z1) * 0.5))
 		road.rotation = Vector3(0.0, yaw, 0.0)
-		var seg: MeshInstance3D = _add_part(_box(Vector3(0.02, 0.009, seg_len + 0.02)), path_mat, Vector3((x0 + x1) * 0.5, 0.0045, (z0 + z1) * 0.5))
+		var seg: MeshInstance3D = _add_part(_box(Vector3(0.02, 0.009, seg_len + 0.02)), path_mat, Vector3((x0 + x1) * 0.5, 0.021, (z0 + z1) * 0.5))
 		seg.rotation = Vector3(0.0, yaw, 0.0)
 
 	# Spawn portal and core. Emission is kept low and the parts are shaded: the old bright
 	# unshaded emission (2.2) blew far past the glow bloom threshold, so the small core sphere
 	# bloomed into a giant white ball that swallowed the whole table corner (owner 2026-10-10).
 	var start_p: Vector3 = path.start()
-	_add_part(_cyl(0.09, 0.09, 0.005), Meshes.solid_material(accent, 0.25), Vector3(start_p.x, 0.003, start_p.z))
+	_add_part(_cyl(0.09, 0.09, 0.005), Meshes.solid_material(accent, 0.25), Vector3(start_p.x, 0.028, start_p.z))
 	var end_p: Vector3 = path.end()
-	_add_part(_sphere(0.08, 0.16), Meshes.solid_material(accent, 0.3), Vector3(end_p.x, 0.08, end_p.z))
-	_add_part(_cyl(0.14, 0.14, 0.004), Meshes.solid_material(accent, 0.2), Vector3(end_p.x, 0.004, end_p.z))
+	_add_part(_sphere(0.08, 0.16), Meshes.solid_material(accent, 0.3), Vector3(end_p.x, 0.1, end_p.z))
+	_add_part(_cyl(0.14, 0.14, 0.004), Meshes.solid_material(accent, 0.2), Vector3(end_p.x, 0.028, end_p.z))
 
 	# Buildable pads (instanced)
 	for ix in range(-7, 8):
@@ -152,7 +156,7 @@ func _init(stage_def: Dictionary) -> void:
 	_pad_mesh.mesh = _box(Vector3(PAD_SIZE, 0.006, PAD_SIZE))
 	for i in spots.size():
 		var sp: Vector2 = spots[i]
-		_pad_mesh.set_instance_transform(i, Transform3D(Basis.IDENTITY, Vector3(sp.x, 0.003, sp.y)))
+		_pad_mesh.set_instance_transform(i, Transform3D(Basis.IDENTITY, Vector3(sp.x, 0.009, sp.y)))
 		_pad_mesh.set_instance_color(i, _idle)
 	var pad_node := MultiMeshInstance3D.new()
 	pad_node.multimesh = _pad_mesh
@@ -272,6 +276,17 @@ func _build_fx(accent: Color) -> void:
 		add_child(node)
 		_bolts.append(node)
 
+	# Thrown boulder pool: stone spheres with their own shaded material.
+	var ball_mesh: SphereMesh = _sphere(Projectiles.BALL_RADIUS, Projectiles.BALL_RADIUS * 2.0)
+	var ball_mat: StandardMaterial3D = Meshes.solid_material(Color(0.42, 0.4, 0.38), 0.0)
+	for i in BALL_POOL:
+		var node := MeshInstance3D.new()
+		node.mesh = ball_mesh
+		node.material_override = ball_mat
+		node.visible = false
+		add_child(node)
+		_balls.append(node)
+
 	# Explosion flash pool: brief point lights so deaths actually light the table up.
 	_light_life.resize(LIGHT_POOL)
 	_light_life.fill(0.0)
@@ -367,17 +382,21 @@ func _build_ghost(kind: int) -> Node3D:
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	root.add_child(_make_part(_cyl(0.05, 0.06, 0.05), mat, Vector3(0.0, 0.025, 0.0)))
-	var head: Mesh
-	if kind == Balance.TowerKind.SNIPER:
-		head = _box(Vector3(0.035, 0.14, 0.035))
-	elif kind == Balance.TowerKind.MORTAR:
-		head = _cyl(0.06, 0.04, 0.06)
-	elif kind == Balance.TowerKind.TESLA or kind == Balance.TowerKind.FROST:
-		head = _sphere(0.045, 0.09)
-	else:
-		head = _box(Vector3(0.07, 0.07, 0.07))
-	root.add_child(_make_part(head, mat, Vector3(0.0, 0.11, 0.0)))
+	root.add_child(_make_part(_head_mesh(kind), mat, Vector3(0.0, 0.11, 0.0)))
 	return root
+
+
+## Head geometry per tower kind, shared by the real tower and its placement ghost.
+static func _head_mesh(kind: int) -> Mesh:
+	if kind == Balance.TowerKind.SNIPER:
+		return _box(Vector3(0.035, 0.14, 0.035))
+	if kind == Balance.TowerKind.MORTAR:
+		return _cyl(0.06, 0.04, 0.06)
+	if kind == Balance.TowerKind.TESLA or kind == Balance.TowerKind.FROST:
+		return _sphere(0.045, 0.09)
+	if kind == Balance.TowerKind.VORTEX:
+		return _cyl(0.065, 0.015, 0.075)   # inverted funnel: the suction mouth
+	return _box(Vector3(0.07, 0.07, 0.07))
 
 
 func set_hover_pad(index: int) -> void:
@@ -395,7 +414,7 @@ func show_ring(at: Vector2, radius: float) -> void:
 		_ring_mesh.top_radius = radius
 		_ring_mesh.bottom_radius = radius
 		_ring_radius = radius
-	_ring.position = Vector3(at.x, 0.004, at.y)
+	_ring.position = Vector3(at.x, 0.03, at.y)
 	_ring.visible = true
 
 
@@ -439,16 +458,7 @@ func _build_tower(t: TowerInstance) -> Node3D:
 	root.position = Vector3(t.x, 0.0, t.z)
 	var c: Color = _tower_color(t.kind)
 	root.add_child(_make_part(_cyl(0.05, 0.06, 0.05), _base_mat, Vector3(0.0, 0.025, 0.0)))
-	var head: Mesh
-	if t.kind == Balance.TowerKind.SNIPER:
-		head = _box(Vector3(0.035, 0.14, 0.035))
-	elif t.kind == Balance.TowerKind.MORTAR:
-		head = _cyl(0.06, 0.04, 0.06)
-	elif t.kind == Balance.TowerKind.TESLA or t.kind == Balance.TowerKind.FROST:
-		head = _sphere(0.045, 0.09)
-	else:
-		head = _box(Vector3(0.07, 0.07, 0.07))
-	root.add_child(_make_part(head, Meshes.solid_material(c, 1.1, false), Vector3(0.0, 0.11, 0.0)))
+	root.add_child(_make_part(_head_mesh(t.kind), Meshes.solid_material(c, 1.1, false), Vector3(0.0, 0.11, 0.0)))
 	for l in t.level:
 		root.add_child(_make_part(_sphere(0.012, 0.024), _pip_mat, Vector3(-0.03 + l * 0.03, 0.2, 0.0)))
 	return root
@@ -463,6 +473,8 @@ static func _tower_color(kind: int) -> Color:
 		return Meshes.hex_color(0x7FB8FF)
 	if kind == Balance.TowerKind.MORTAR:
 		return Meshes.hex_color(0xFFD23F)
+	if kind == Balance.TowerKind.VORTEX:
+		return Meshes.hex_color(0x2EE6D6)
 	return Meshes.hex_color(0xFF4D6D)
 
 
@@ -527,9 +539,17 @@ func _burst(at: Vector3, radius: float, life: float, style: int) -> void:
 ## Repositions the bolt pool from the projectile system. Call once per frame after its tick.
 func draw_bolts(proj: Projectiles) -> void:
 	var n: int = 0
+	var nb: int = 0
 	if proj.alive_count > 0:
 		for i in Projectiles.CAP:
 			if proj.alive[i] == 0:
+				continue
+			if proj.kind[i] == Projectiles.KIND_BALL:
+				if nb < BALL_POOL:
+					var ball: MeshInstance3D = _balls[nb]
+					ball.position = Vector3(proj.px[i], proj.py[i], proj.pz[i])
+					ball.visible = true
+					nb += 1
 				continue
 			var node: MeshInstance3D = _bolts[n]
 			var fwd := Vector3(proj.dx[i], proj.dy[i], proj.dz[i])
@@ -548,6 +568,11 @@ func draw_bolts(proj: Projectiles) -> void:
 		if not spare.visible:
 			break
 		spare.visible = false
+	for k in range(nb, BALL_POOL):
+		var spare_b: MeshInstance3D = _balls[k]
+		if not spare_b.visible:
+			break
+		spare_b.visible = false
 
 
 ## A death explosion: expanding burst, floor flash from the light pool, at a battlefield point.

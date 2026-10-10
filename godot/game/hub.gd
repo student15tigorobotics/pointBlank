@@ -16,7 +16,8 @@ extends Node3D
 const CENTER: Vector3 = Vector3(0.0, 1.45, -2.0)
 const TABS: Array = ["stages", "shop", "board", "codes", "options"]
 const TAB_NAMES: Array = ["STAGES", "SHOP", "BOARD", "CODES", "OPTIONS"]
-const SHORT_NAMES: Array = ["STARFALL REACH", "NEON ASCENDANCY", "MIDNIGHT HARBOR", "SCARAB KING", "IRON PANTHEON", "LAST FREQUENCY"]
+const SHORT_NAMES: Array = ["STARFALL REACH", "NEON ASCENDANCY", "MIDNIGHT HARBOR", "SCARAB KING", "IRON PANTHEON", "LAST FREQUENCY",
+	"NEO-KYOTO DRIFT", "SHIBUYA RAINFALL", "ONI PROTOCOL", "SAKURA CIRCUIT", "RONIN GRID", "TSUKUYOMI GATE"]
 const TIER_NAMES: Array = ["LOW", "MEDIUM", "HIGH"]
 const KEYS: Array = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "CLR", "0", "ENTER"]
 
@@ -60,10 +61,11 @@ func _p(x: float, y: float) -> Vector3:
 
 
 func _build_stages() -> void:
+	# 12 chapters: a 4-wide grid of compact cards.
 	for i in StageCatalog.count():
 		var stage: int = i
-		var x: float = -0.95 + (i % 3) * 0.95
-		var y: float = 0.12 - floori(i / 3.0) * 0.5
+		var x: float = -1.05 + (i % 4) * 0.7
+		var y: float = 0.24 - floori(i / 4.0) * 0.36
 		var status: String
 		if not profile.can_play_stage(i):
 			status = "LOCKED"
@@ -72,10 +74,10 @@ func _build_stages() -> void:
 		else:
 			status = "%d / 3 STARS" % int(profile.stage_stars[i])
 		var label: String = "%d  %s\n%s" % [i + 1, SHORT_NAMES[i], status]
-		Ui.button(self, label, _p(x, y), Vector2(0.84, 0.42),
+		Ui.button(self, label, _p(x, y), Vector2(0.64, 0.3),
 			Ui.ACCENT if profile.can_play_stage(i) else Ui.DIM,
-			Callable(app, "start_stage").bind(stage), 24)
-	Ui.label(self, "Clear a chapter to unlock the next. Upgrades can be bought in SHOP between chapters.", _p(0.0, -0.62), 22, Ui.DIM)
+			Callable(app, "start_stage").bind(stage), 17)
+	Ui.label(self, "Clear a chapter to unlock the next. Upgrades can be bought in SHOP between chapters.", _p(0.0, -0.82), 22, Ui.DIM)
 
 
 func _build_shop() -> void:
@@ -162,7 +164,7 @@ func _build_codes() -> void:
 
 	Ui.label_left(self, "CHAPTER CODES", _p(0.25, 0.42), 28, Ui.ACCENT)
 	for ch in StageCatalog.count():
-		var y: float = 0.2 - ch * 0.13
+		var y: float = 0.24 - ch * 0.085
 		var def: Dictionary = CheatCatalog.for_chapter(ch)
 		if def.is_empty():
 			continue
