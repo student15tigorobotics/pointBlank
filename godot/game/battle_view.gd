@@ -169,7 +169,8 @@ func _init(stage_def: Dictionary) -> void:
 	add_child(renderer)
 
 	_build_fx(accent)
-	_build_hud()
+	# The HUD labels/buttons live on Boot's head-following HudBar, injected via Boot._attach_hud
+	# before the BattleController is created. The old world-anchored HUD window is gone.
 
 
 func _build_fx(accent: Color) -> void:
@@ -244,23 +245,6 @@ func _build_fx(accent: Color) -> void:
 		lamp.visible = false
 		add_child(lamp)
 		_lights.append(lamp)
-
-
-func _build_hud() -> void:
-	# Left of the table, facing the player (player is at local (0,-0.9,2.2)).
-	var hud := Node3D.new()
-	hud.position = Vector3(-1.25, 0.6, 0.45)
-	add_child(hud)
-	Ui.quad(hud, Vector3.ZERO, Vector2(1.0, 1.05), Ui.PANEL)
-	Ui.face_center(hud, -TABLE_CENTER)
-	hud_credits = Ui.label(hud, "", Vector3(0.0, 0.42, 0.02), 40, Ui.GOLD, 0.0013)
-	hud_core = Ui.label(hud, "", Vector3(0.0, 0.31, 0.02), 34, Ui.ACCENT, 0.0013)
-	hud_wave = Ui.label(hud, "", Vector3(0.0, 0.2, 0.02), 30, Color.WHITE, 0.0013)
-	hud_tower = Ui.label(hud, "", Vector3(0.0, 0.08, 0.02), 30, Color.WHITE, 0.0013)
-	hud_weapon = Ui.label(hud, "", Vector3(0.0, -0.02, 0.02), 30, Color.WHITE, 0.0013)
-	hud_note = Ui.label(hud, "", Vector3(0.0, -0.14, 0.02), 22, Ui.DIM, 0.0013)
-	call_button = Ui.button(hud, "CALL WAVE", Vector3(-0.22, -0.36, 0.03), Vector2(0.4, 0.12), Ui.ACCENT, Callable(), 28)
-	retreat_button = Ui.button(hud, "RETREAT", Vector3(0.22, -0.36, 0.03), Vector2(0.4, 0.12), Ui.WARN, Callable(), 28)
 
 
 ## Converts a world pointer to battlefield-local space. Returns [origin: Vector3, dir: Vector3] (shared scratch).

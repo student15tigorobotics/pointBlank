@@ -47,11 +47,12 @@ var xr_cam: XRCamera3D = null
 var desk_cam: Camera3D = null
 var hands: Hands = null
 var locomotion: Locomotion = null
+var hud_bar: HudBar = null
 var stage_index: int = -1
 var state: String = ""
 
-# Scratch for the per-frame hand ray hits [valid, length, world_pos], ordered [right, left].
-var _hand_hits: Array = [[false, 0.0, Vector3.ZERO], [false, 0.0, Vector3.ZERO]]
+# Scratch for the per-frame hand ray hits [valid, length, world_pos, near_ui], ordered [right, left].
+var _hand_hits: Array = [[false, 0.0, Vector3.ZERO, false], [false, 0.0, Vector3.ZERO, false]]
 var _no_presses: Array = [false, false]
 
 var _xr_on: bool = false
@@ -205,6 +206,8 @@ func _process(delta: float) -> void:
 
 	var presses: Array = _no_presses if locomoting else controls.ui_presses()
 	var ui_over: bool = Ui.update(controls.ui_pointers(), presses)
+	if hud_bar != null and is_instance_valid(hud_bar):
+		hud_bar.follow(xr_cam if _xr_on else desk_cam, dt)
 	if _xr_on and hands != null:
 		_update_hands()
 	if state == "dialogue":
@@ -238,21 +241,32 @@ func _update_hands() -> void:
 	hands.update(_hand_hits)
 
 
-## Nearest hit for a pointer as [valid, length, world_pos]: UI buttons first, then the battle
-## table top. Reuses the shared _hand_hits entry is avoided; a fresh small array is returned.
+## Nearest hit for a pointer as [valid, length, world_pos, near_ui]. UI buttons first, then the
+## battle table top. near_ui is true when the ray hits a button or passes close by one — the
+## hand beam only shows then, so there is no beam noise while aiming at the battlefield.
 func _ray_hit(p: Pointer) -> Array:
 	if not p.valid:
-		return [false, 0.0, Vector3.ZERO]
+		return [false, 0.0, Vector3.ZERO, false]
 	var best: float = INF
 	var hit: Vector3 = Vector3.ZERO
+	var near_ui: bool = false
 	for bi in Ui.buttons.size():
 		var b = Ui.buttons[bi]
 		if not is_instance_valid(b) or not b.enabled or not b.is_inside_tree():
 			continue
 		var d: float = b.hit_distance(p.origin, p.dir)
-		if d >= 0.0 and d < best:
-			best = d
-			hit = p.origin + p.dir * d
+		if d >= 0.0:
+			near_ui = true
+			if d < best:
+				best = d
+				hit = p.origin + p.dir * d
+			continue
+		# Closest approach of the ray to the button centre: near misses still raise the beam,
+		# so it fades in as the hand sweeps toward the bar instead of popping on contact.
+		var to_b: Vector3 = b.global_position - p.origin
+		var along: float = to_b.dot(p.dir)
+		if along > 0.0 and (to_b - p.dir * along).length() < 0.3:
+			near_ui = true
 	if view != null and is_instance_valid(view):
 		var lr: Array = view.local_ray(p)
 		var tp: Array = view.table_point(lr[0], lr[1])
@@ -264,8 +278,8 @@ func _ray_hit(p: Pointer) -> Array:
 				best = dist
 				hit = world_hit
 	if best == INF:
-		return [false, 0.0, Vector3.ZERO]
-	return [true, best, hit]
+		return [false, 0.0, Vector3.ZERO, near_ui]
+	return [true, best, hit, near_ui]
 
 
 # ---- Services used by hub.gd and dialogue.gd -----------------------------------------------
@@ -311,12 +325,36 @@ func _clear_content() -> void:
 	dialogue = null
 	view = null
 	hub = null
+	# The HUD bar's buttons were just dropped from Ui's registry, so the bar goes with them.
+	if hud_bar != null:
+		if is_instance_valid(hud_bar):
+			hud_bar.queue_free()
+		hud_bar = null
 	# A new scene always starts recentred, so a grab left mid-zoom cannot strand the next screen.
 	content.transform = Transform3D.IDENTITY
 	if locomotion != null:
 		locomotion.reset()
 	for child in content.get_children():
 		child.queue_free()
+
+
+## Creates the head-following status bar and hands its labels/buttons to the battle view, so the
+## controller's HUD writes land on the bar. Must run before a BattleController is constructed.
+## The bar is a child of Boot, not `content`: locomotion zoom must never move the HUD.
+func _attach_hud() -> void:
+	if hud_bar != null and is_instance_valid(hud_bar):
+		hud_bar.queue_free()
+	hud_bar = HudBar.new()
+	add_child(hud_bar)
+	hud_bar.snap(xr_cam if _xr_on else desk_cam)
+	view.hud_credits = hud_bar.credits
+	view.hud_core = hud_bar.core
+	view.hud_wave = hud_bar.wave
+	view.hud_tower = hud_bar.tower
+	view.hud_weapon = hud_bar.weapon
+	view.hud_note = hud_bar.note
+	view.call_button = hud_bar.call_button
+	view.retreat_button = hud_bar.retreat_button
 
 
 ## Any show_hub clears the RESET arming unless the reset button's own first press passes keep_arm.
@@ -367,6 +405,7 @@ func _begin_battle() -> void:
 	var mods: BattleModifiers = profile.consume_battle_modifiers()
 	save()
 	_apply_battle_cap()
+	_attach_hud()
 	battle = BattleController.new(view, profile, mods, false, quality)
 	if dialogue != null:
 		dialogue.queue_free()
@@ -395,6 +434,7 @@ func start_benchmark() -> void:
 	quality.set_tier(profile.quality)
 	quality.enabled = false
 	_benchmark_running = true
+	_attach_hud()
 	battle = BattleController.new(view, profile, mods, true, quality)
 	state = "battle"
 	Audio.music("battle")
@@ -598,6 +638,7 @@ func _shots_battle(stage_i: int, seconds: float) -> void:
 	var mods: BattleModifiers = profile.consume_battle_modifiers()
 	quality.set_tier(profile.quality)
 	quality.enabled = true
+	_attach_hud()
 	battle = BattleController.new(view, profile, mods, false, quality)
 	state = "battle"
 
@@ -672,6 +713,7 @@ func _run_smoke() -> void:
 	content.add_child(view)
 	var mods: BattleModifiers = profile.consume_battle_modifiers()
 	mods.core_max_hp = 300
+	_attach_hud()
 	battle = BattleController.new(view, profile, mods, false, quality)
 	state = "battle"
 

@@ -53,15 +53,20 @@ func _ready() -> void:
 		_reticles.append(dot)
 
 
-## hits[i] is [valid: bool, length: float, world_pos: Vector3] for hand i, ordered [right, left].
+## hits[i] is [valid: bool, length: float, world_pos: Vector3, near_ui: bool] per hand,
+## ordered [right, left]. The beam only shows while the ray is on or near a UI button —
+## battlefield aiming keeps just the reticle dot, so no beam clutters the view (owner ask).
 func update(hits: Array) -> void:
 	for i in _beams.size():
 		var h: Array = hits[i]
 		var ok: bool = bool(h[0])
-		var length: float = clampf(float(h[1]), MIN_LEN, MAX_LEN) if ok else DEFAULT_LEN
+		var near_ui: bool = h.size() > 3 and bool(h[3])
 		var beam: MeshInstance3D = _beams[i]
-		beam.position = Vector3(0.0, 0.0, -length * 0.5)
-		beam.scale = Vector3(1.0, 1.0, length)
+		beam.visible = near_ui
+		if near_ui:
+			var length: float = clampf(float(h[1]), MIN_LEN, MAX_LEN) if ok else DEFAULT_LEN
+			beam.position = Vector3(0.0, 0.0, -length * 0.5)
+			beam.scale = Vector3(1.0, 1.0, length)
 		var dot: MeshInstance3D = _reticles[i]
 		dot.visible = ok
 		if ok:
