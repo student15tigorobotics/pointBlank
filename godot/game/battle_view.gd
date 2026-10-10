@@ -23,6 +23,9 @@ const TABLE_CENTER: Vector3 = Vector3(0.0, 0.9, -2.2)
 const PAD_SIZE: float = 0.16
 const TRACER_POOL: int = 160
 const BURST_POOL: int = 16
+const BOLT_POOL: int = 96
+const LIGHT_POOL: int = 4
+const LIGHT_LIFE: float = 0.28
 const FLOAT_POOL: int = 24
 const FLOAT_LIFE: float = 1.1
 const PAD_PICK_RADIUS_SQ: float = 0.01        # 0.1 m
@@ -73,6 +76,11 @@ var _float_life: PackedFloat32Array = PackedFloat32Array()
 var _float_at: PackedVector3Array = PackedVector3Array()
 var _float_next: int = 0
 
+var _bolts: Array = []                # MeshInstance3D pool for travelling projectiles
+var _lights: Array = []               # OmniLight3D pool for explosion flashes
+var _light_life: PackedFloat32Array = PackedFloat32Array()
+var _light_next: int = 0
+
 var _local_out: Array = [Vector3.ZERO, Vector3.ZERO]
 var _pad_out: Array = [-1, Vector2.ZERO]
 var _table_out: Array = [false, Vector2.ZERO]
@@ -97,8 +105,11 @@ func _init(stage_def: Dictionary) -> void:
 		_add_part(_box(Vector3(3.0, 0.004, 0.004)), grid_mat, Vector3(0.0, 0.002, v))
 		_add_part(_box(Vector3(0.004, 0.004, 3.0)), grid_mat, Vector3(v, 0.002, 0.0))
 
-	# Lane ribbon along the path
+	# Lane ribbon along the path: a dim wide roadway (enemies weave across its width) with a
+	# bright centre line, so the walkable corridor reads at a glance.
 	var pts: PackedFloat32Array = stage_def["path"]
+	var road_w: float = Swarm.LANE_HALF * 2.0 + 0.08
+	var road_mat: StandardMaterial3D = Meshes.solid_material(accent * 0.35, 0.5, false)
 	var path_mat: StandardMaterial3D = Meshes.solid_material(accent, 1.4, false)
 	for i in (pts.size() >> 1) - 1:
 		var x0: float = pts[i * 2]
@@ -106,8 +117,11 @@ func _init(stage_def: Dictionary) -> void:
 		var x1: float = pts[i * 2 + 2]
 		var z1: float = pts[i * 2 + 3]
 		var seg_len: float = sqrt((x1 - x0) * (x1 - x0) + (z1 - z0) * (z1 - z0))
-		var seg: MeshInstance3D = _add_part(_box(Vector3(0.05, 0.008, seg_len + 0.05)), path_mat, Vector3((x0 + x1) * 0.5, 0.004, (z0 + z1) * 0.5))
-		seg.rotation = Vector3(0.0, atan2(x1 - x0, z1 - z0), 0.0)
+		var yaw: float = atan2(x1 - x0, z1 - z0)
+		var road: MeshInstance3D = _add_part(_box(Vector3(road_w, 0.006, seg_len + road_w)), road_mat, Vector3((x0 + x1) * 0.5, 0.003, (z0 + z1) * 0.5))
+		road.rotation = Vector3(0.0, yaw, 0.0)
+		var seg: MeshInstance3D = _add_part(_box(Vector3(0.02, 0.009, seg_len + 0.02)), path_mat, Vector3((x0 + x1) * 0.5, 0.0045, (z0 + z1) * 0.5))
+		seg.rotation = Vector3(0.0, yaw, 0.0)
 
 	# Spawn portal and core
 	var start_p: Vector3 = path.start()
@@ -203,6 +217,28 @@ func _build_fx(accent: Color) -> void:
 		lbl.visible = false
 		add_child(lbl)
 		_floats.append(lbl)
+
+	# Travelling bolt pool: short emissive slugs, repositioned every frame from Projectiles.
+	var bolt_mesh: BoxMesh = _box(Vector3(0.014, 0.014, 0.085))
+	for i in BOLT_POOL:
+		var node := MeshInstance3D.new()
+		node.mesh = bolt_mesh
+		node.visible = false
+		add_child(node)
+		_bolts.append(node)
+
+	# Explosion flash pool: brief point lights so deaths actually light the table up.
+	_light_life.resize(LIGHT_POOL)
+	_light_life.fill(0.0)
+	for i in LIGHT_POOL:
+		var lamp := OmniLight3D.new()
+		lamp.light_color = accent
+		lamp.omni_range = 0.6
+		lamp.light_energy = 0.0
+		lamp.shadow_enabled = false
+		lamp.visible = false
+		add_child(lamp)
+		_lights.append(lamp)
 
 
 func _build_hud() -> void:
@@ -421,6 +457,45 @@ func _burst(at: Vector3, radius: float, life: float, style: int) -> void:
 	node.visible = true
 
 
+## Repositions the bolt pool from the projectile system. Call once per frame after its tick.
+func draw_bolts(proj: Projectiles) -> void:
+	var n: int = 0
+	if proj.alive_count > 0:
+		for i in Projectiles.CAP:
+			if proj.alive[i] == 0:
+				continue
+			var node: MeshInstance3D = _bolts[n]
+			var fwd := Vector3(proj.dx[i], proj.dy[i], proj.dz[i])
+			var up: Vector3 = Vector3.RIGHT if absf(fwd.dot(Vector3.UP)) > 0.98 else Vector3.UP
+			var z_axis: Vector3 = -fwd
+			var x_axis: Vector3 = up.cross(z_axis).normalized()
+			node.transform = Transform3D(Basis(x_axis, z_axis.cross(x_axis), z_axis),
+				Vector3(proj.px[i], proj.py[i], proj.pz[i]))
+			node.material_override = _style_mats[proj.style[i]]
+			node.visible = true
+			n += 1
+			if n >= BOLT_POOL:
+				break
+	for k in range(n, BOLT_POOL):
+		var spare: MeshInstance3D = _bolts[k]
+		if not spare.visible:
+			break
+		spare.visible = false
+
+
+## A death explosion: expanding burst, floor flash from the light pool, at a battlefield point.
+func explosion(at: Vector3, big: bool = false) -> void:
+	_burst(at, 0.09 if big else 0.055, 0.3, 3)
+	var i: int = _light_next
+	_light_next = (i + 1) % LIGHT_POOL
+	_light_life[i] = LIGHT_LIFE
+	var lamp: OmniLight3D = _lights[i]
+	lamp.position = at + Vector3(0.0, 0.06, 0.0)
+	lamp.omni_range = 0.9 if big else 0.5
+	lamp.light_energy = 3.0 if big else 1.8
+	lamp.visible = true
+
+
 ## Floating text (credits, levels, warnings) that rises and fades over FLOAT_LIFE seconds.
 func float_text(text: String, at: Vector3, color: Color) -> void:
 	var i: int = _float_next
@@ -454,6 +529,16 @@ func tick_fx(dt: float) -> void:
 		var size_v: float = _burst_radius[i] * 2.0 * (0.3 + 0.7 * progress)
 		node.position = _burst_at[i]
 		node.scale = Vector3(size_v, size_v, size_v)
+	for i in LIGHT_POOL:
+		if _light_life[i] <= 0.0:
+			continue
+		_light_life[i] -= dt
+		var lamp: OmniLight3D = _lights[i]
+		if _light_life[i] <= 0.0:
+			lamp.visible = false
+			lamp.light_energy = 0.0
+			continue
+		lamp.light_energy *= maxf(1.0 - dt * 9.0, 0.0)
 	for i in FLOAT_POOL:
 		if _float_life[i] <= 0.0:
 			continue

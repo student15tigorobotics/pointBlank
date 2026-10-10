@@ -14,6 +14,7 @@ extends RefCounted
 ## Port of the Ui class in Game/Ui.cs (static). The button registry is `buttons`.
 
 static var buttons: Array = []
+static var _hover_id: int = 0   # instance id of last frame's hovered button, for the hover blip
 
 static var PANEL: Color = Color(0.03, 0.05, 0.09, 0.92)
 static var ACCENT: Color = Color(0.25, 0.95, 0.92)
@@ -33,6 +34,9 @@ static func make_label(text: String, font: int, color: Color, pixel: float = 0.0
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	l.double_sided = true
+	# Discard-mode alpha renders the glyphs in the opaque pass: on the mobile multiview
+	# renderer, alpha-blended labels could vanish behind opaque panels drawn later.
+	l.alpha_cut = Label3D.ALPHA_CUT_OPAQUE_PREPASS
 	return l
 
 
@@ -90,6 +94,7 @@ static func face_center(node: Node3D, target: Vector3) -> void:
 static func update(pointers: Array, presses: Array) -> bool:
 	_prune_and_clear_hover()
 	var over: bool = false
+	var hover_now: int = 0
 	for pi in pointers.size():
 		var p: Pointer = pointers[pi]
 		if not p.valid:
@@ -107,10 +112,15 @@ static func update(pointers: Array, presses: Array) -> bool:
 		if best == null:
 			continue
 		over = true
+		hover_now = best.get_instance_id()
 		best.set_hovered(true)
 		var pressed: bool = pi < presses.size() and bool(presses[pi])
 		if pressed and best.callback.is_valid():
+			Audio.play("ui.click")
 			best.callback.call()
+	if hover_now != 0 and hover_now != _hover_id:
+		Audio.play("ui.hover", -10.0)
+	_hover_id = hover_now
 	return over
 
 

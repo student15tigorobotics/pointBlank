@@ -35,7 +35,11 @@ func _init(box_size: Vector2 = Vector2.ZERO, text: String = "", color: Color = C
 	body.material_override = _mat
 	add_child(body)
 	if text != "":
-		add_child(Ui.make_label(text, font, Color.WHITE, 0.0015))
+		var lbl: Label3D = Ui.make_label(text, font, Color.WHITE, 0.0015)
+		# In front of the box face (half depth 0.0125), not at the centre where the opaque
+		# mesh swallows it — buried captions were invisible on device.
+		lbl.position = Vector3(0.0, 0.0, 0.016)
+		add_child(lbl)
 
 
 func set_hovered(on: bool) -> void:

@@ -47,6 +47,7 @@ var director: WaveDirector
 var towers: TowerField
 var weapons: WeaponSystem
 var grid: SpatialGrid
+var projectiles: Projectiles
 var benchmark: bool = false
 var outcome: int = Outcome.RUNNING
 var benchmark_result: Dictionary = {}     # {alive, visible, tier, stop} once the benchmark has ended
@@ -75,6 +76,9 @@ var _last_visible: int = 0                # last_good: visible at the last in-bu
 var _win_time: float = 0.0
 var _win_ms: float = 0.0
 var _win_frames: int = 0
+var _impacts: Array = []                  # flat [x, y, z, style, killed] runs from Projectiles.tick
+var _prev_phase: int = WaveDirector.Phase.PREP
+var _prev_core_hp: int = -1
 
 
 func _init(view_ref: BattleView, profile_ref: Profile, mods: BattleModifiers, bench: bool, quality_ref: Quality) -> void:
@@ -88,6 +92,7 @@ func _init(view_ref: BattleView, profile_ref: Profile, mods: BattleModifiers, be
 	towers = TowerField.new()
 	weapons = WeaponSystem.new()
 	grid = SpatialGrid.new()
+	projectiles = Projectiles.new()
 	towers.damage_mult = mods.tower_damage_mult
 	weapons.damage_mult = mods.weapon_damage_mult
 	weapons.cooldown_mult = mods.weapon_cooldown_mult
@@ -144,6 +149,7 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 		var bonus: int = director.call_early(eco.early_bonus_mult, eco)
 		if bonus > 0:
 			view.float_text("EARLY CALL +" + str(bonus), Vector3(0.0, CLEAR_TEXT_HEIGHT, 0.0), Ui.GOLD)
+			Audio.play("early_call")
 	_call_requested = false
 	_retreat_requested = false
 
@@ -160,8 +166,13 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 			var clear_bonus: int = BattleEconomy.wave_clear_bonus(director.cleared_wave_index)
 			eco.earn(clear_bonus)
 			view.float_text("WAVE CLEAR +" + str(clear_bonus), Vector3(0.0, CLEAR_TEXT_HEIGHT, 0.0), Ui.ACCENT)
+			Audio.play("wave.clear")
+		if director.phase == WaveDirector.Phase.ACTIVE and _prev_phase == WaveDirector.Phase.PREP:
+			Audio.play("wave.start")
+		_prev_phase = director.phase
 
-	swarm.step(dt, eco)
+	# Enemy body collision runs in battles; the benchmark skips it to keep measuring the renderer.
+	swarm.step(dt, eco, null if benchmark else grid)
 	grid.rebuild(swarm)
 	towers.tick(dt, swarm, eco, _shots, grid)
 	weapons.tick(dt)
@@ -174,11 +185,30 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 		# ready() tells us the shot will actually discharge this frame (not blocked by cooldown).
 		var discharged: bool = weapons.ready()
 		var before: int = _shots.size()
-		weapons.try_fire(weapon_kind(), aim_o, aim_d, swarm, eco, _shots)
-		# Hitscan weapons (blaster/scatter/arc) draw nothing on a clean miss, so the trigger felt
-		# dead. Give every discharge a muzzle tracer down the aim line when the shot drew nothing.
-		if discharged and _shots.size() == before:
-			view.shoot(ShotStyle.make(aim_o, aim_o + aim_d * MUZZLE_REACH, 0.0, ShotStyle.Style.BOLT))
+		var launched: int = weapons.try_fire(weapon_kind(), aim_o, aim_d, swarm, eco, _shots, projectiles)
+		if discharged:
+			Audio.play(_fire_sound(weapon_kind()), -2.0, 0.06)
+			# Instant weapons that connect with nothing draw nothing, so the trigger felt dead.
+			# Give such a discharge a muzzle tracer down the aim line. Bolt weapons always show.
+			if launched == 0 and _shots.size() == before:
+				view.shoot(ShotStyle.make(aim_o, aim_o + aim_d * MUZZLE_REACH, 0.0, ShotStyle.Style.BOLT))
+
+	# Travelling bolts: advance, land hits, and show their impacts.
+	_impacts.clear()
+	projectiles.tick(dt, swarm, grid, eco, _impacts)
+	var imp: int = 0
+	while imp < _impacts.size():
+		var at := Vector3(_impacts[imp], _impacts[imp + 1], _impacts[imp + 2])
+		view.shoot(ShotStyle.make(at, at, 0.03, ShotStyle.Style.BURST))
+		imp += 5
+	view.draw_bolts(projectiles)
+
+	# Death explosions: light, fire and sound for every enemy that went down this frame.
+	if not benchmark and swarm.death_count > 0:
+		for di in swarm.death_count:
+			view.explosion(Vector3(swarm.death_x[di], swarm.death_y[di], swarm.death_z[di]))
+		Audio.play("explosion", -4.0, 0.18)
+	swarm.clear_deaths()
 
 	if controls.weapon_step != 0 and _weapon_kinds.size() > 0:
 		_weapon_idx = posmod(_weapon_idx + controls.weapon_step, _weapon_kinds.size())
@@ -199,6 +229,7 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 				if ok:
 					msg = "LEVEL " + str(t.level)
 					col = Ui.GOLD
+					Audio.play("tower.upgrade")
 				elif t.level >= Balance.MAX_TOWER_LEVEL:
 					msg = "MAX LEVEL"
 					col = Ui.WARN
@@ -206,6 +237,12 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 					msg = "NO CREDITS"
 					col = Ui.WARN
 				view.float_text(msg, Vector3(xz.x, TEXT_HEIGHT, xz.y), col)
+
+	# Core damage feedback: leaks this frame dropped the core.
+	if not benchmark:
+		if _prev_core_hp >= 0 and eco.core_hp < _prev_core_hp:
+			Audio.play("core.damage", 0.0, 0.05)
+		_prev_core_hp = eco.core_hp
 
 	var shown: int = 0
 	for s in _shots:
@@ -217,6 +254,7 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 		var last: Dictionary = _shots[_shots.size() - 1]
 		var last_to: Vector3 = last["to"]
 		view.float_text("OVERKILL +" + str(eco.overkill_credits - overkill_before), Vector3(last_to.x, last_to.y + 0.05, last_to.z), Ui.GOLD)
+		Audio.play("overkill", -6.0)
 
 	view.sync_towers(towers.towers)
 	view.tick_fx(dt)
@@ -235,6 +273,19 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 		outcome = Outcome.FAILED
 	elif director.phase == WaveDirector.Phase.FINISHED:
 		outcome = Outcome.CLEARED
+
+
+## SFX key for a weapon discharge. Nova shares the explosion sample; it is a burst weapon.
+static func _fire_sound(kind: int) -> String:
+	if kind == Balance.WeaponKind.SCATTER:
+		return "shot.scatter"
+	if kind == Balance.WeaponKind.RAIL:
+		return "shot.rail"
+	if kind == Balance.WeaponKind.ARC:
+		return "shot.arc"
+	if kind == Balance.WeaponKind.NOVA:
+		return "explosion"
+	return "shot.blaster"
 
 
 func _on_call_pressed() -> void:
@@ -291,6 +342,7 @@ func _place_at(spot: Vector2) -> void:
 		return
 	_occupied[TowerField.pad_key(spot.x, spot.y)] = true
 	view.float_text("-" + str(cost), Vector3(spot.x, TEXT_HEIGHT, spot.y), Ui.GOLD)
+	Audio.play("tower.place")
 
 
 func _sell_near(at: Vector2) -> void:
@@ -300,6 +352,7 @@ func _sell_near(at: Vector2) -> void:
 	_occupied.erase(TowerField.pad_key(t.x, t.z))
 	var refund: int = towers.sell(t, eco)
 	view.float_text("+" + str(refund), Vector3(t.x, TEXT_HEIGHT, t.z), Ui.ACCENT)
+	Audio.play("tower.sell")
 
 
 ## Benchmark spawn ramp: 120 drones every 0.25 s until the enemy cap is reached.

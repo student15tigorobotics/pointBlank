@@ -89,6 +89,7 @@ func _ready() -> void:
 
 	_build_world(desktop)
 	quality.set_tier(profile.quality)
+	add_child(Audio.new())
 	voice = Voice.new()
 	add_child(voice)
 	content = Node3D.new()
@@ -318,11 +319,14 @@ func show_hub(tab: String, message: String, keep_arm: bool = false) -> void:
 	_apply_theme(_themes[0])
 	hub = Hub.new(self, tab, message)
 	content.add_child(hub)
+	Audio.music("hub")
+	Audio.ambient(false)
 
 
 func _play_prologue() -> void:
 	_clear_content()
 	state = "dialogue"
+	Audio.music("hub")
 	dialogue = Dialogue.new(voice, profile, Callable(self, "save"))
 	content.add_child(dialogue)
 	dialogue.play(Story.prologue(), Callable(self, "_on_prologue_done"))
@@ -359,6 +363,8 @@ func _begin_battle() -> void:
 		dialogue.queue_free()
 		dialogue = null
 	state = "battle"
+	Audio.music("battle")
+	Audio.ambient(true)
 
 
 ## Battle spawn cap: the on-device benchmark result when there is one, otherwise the saved tier default.
@@ -382,6 +388,8 @@ func start_benchmark() -> void:
 	_benchmark_running = true
 	battle = BattleController.new(view, profile, mods, true, quality)
 	state = "battle"
+	Audio.music("battle")
+	Audio.ambient(true)
 
 
 func _tick_battle(dt: float, ui_over: bool) -> void:
@@ -423,6 +431,9 @@ func _end_battle(outcome: int) -> void:
 
 	_clear_content()
 	state = "result"
+	Audio.music("hub")
+	Audio.ambient(false)
+	Audio.play("victory" if cleared else "defeat")
 	_show_result(outcome, cleared, stars, score, rank, payout, revealed, eco)
 
 

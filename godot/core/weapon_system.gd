@@ -60,8 +60,11 @@ func tick(dt: float) -> void:
 		cooldown -= dt
 
 
-## Fires if off cooldown. Returns the number of enemies damaged.
-func try_fire(kind: int, origin: Vector3, dir: Vector3, swarm: Swarm, economy: BattleEconomy, shots: Array) -> int:
+## Fires if off cooldown. Returns the number of enemies damaged or bolts launched.
+## Blaster and scatter launch travelling bolts into proj (star-wars style: flight time, lead
+## your target); rail, arc and nova stay instantaneous. proj may be null (old callers/tests),
+## which falls back to the original hitscan behaviour.
+func try_fire(kind: int, origin: Vector3, dir: Vector3, swarm: Swarm, economy: BattleEconomy, shots: Array, proj: Projectiles = null) -> int:
 	if not ready():
 		return 0
 	cooldown = _w_cooldown[kind] * cooldown_mult
@@ -69,9 +72,9 @@ func try_fire(kind: int, origin: Vector3, dir: Vector3, swarm: Swarm, economy: B
 	var d: Vector3 = _normalized(dir)
 
 	if kind == Balance.WeaponKind.BLASTER:
-		return _fire_blaster(kind, origin, d, dmg, swarm, economy, shots)
+		return _fire_blaster(kind, origin, d, dmg, swarm, economy, shots, proj)
 	if kind == Balance.WeaponKind.SCATTER:
-		return _fire_scatter(kind, origin, d, dmg, swarm, economy, shots)
+		return _fire_scatter(kind, origin, d, dmg, swarm, economy, shots, proj)
 	if kind == Balance.WeaponKind.RAIL:
 		return _fire_rail(kind, origin, d, dmg, swarm, economy, shots)
 	if kind == Balance.WeaponKind.ARC:
@@ -79,16 +82,38 @@ func try_fire(kind: int, origin: Vector3, dir: Vector3, swarm: Swarm, economy: B
 	return _fire_nova(kind, origin, d, dmg, swarm, economy, shots)
 
 
-func _fire_blaster(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: Array) -> int:
+const BOLT_SPEED: float = 3.6     # m/s across the table; fast but visibly in flight
+const PELLET_SPEED: float = 2.8
+const SCATTER_SPREAD: float = 0.14  # radians of fan either side for scatter pellets
+
+func _fire_blaster(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: Array, proj: Projectiles) -> int:
 	var target: int = _best_in_cone(swarm, o, d, _w_range[kind], _w_cone[kind])
-	if target < 0:
-		return 0
-	shots.append(ShotStyle.make(o, _pos(swarm, target), 0.0, ShotStyle.Style.BOLT))
-	Combat.hit(swarm, target, dmg, economy)
+	if proj == null:
+		if target < 0:
+			return 0
+		shots.append(ShotStyle.make(o, _pos(swarm, target), 0.0, ShotStyle.Style.BOLT))
+		Combat.hit(swarm, target, dmg, economy)
+		return 1
+	# Soft aim assist: the bolt leaves toward the best cone target's current position, so a
+	# moving enemy still dodges a lazy shot. No target: it flies straight down the aim line.
+	var fly: Vector3 = d if target < 0 else _normalized(_pos(swarm, target) - o)
+	proj.fire(o, fly, BOLT_SPEED, _w_range[kind], dmg, ShotStyle.Style.BOLT)
 	return 1
 
 
-func _fire_scatter(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: Array) -> int:
+func _fire_scatter(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: Array, proj: Projectiles) -> int:
+	if proj != null:
+		# A fan of pellets around the aim line; each is a real projectile that must connect.
+		var n_p: int = mini(_w_count[kind], 8)
+		var up: Vector3 = Vector3.UP if absf(d.dot(Vector3.UP)) < 0.98 else Vector3.RIGHT
+		var side: Vector3 = _normalized(d.cross(up))
+		var rise: Vector3 = _normalized(side.cross(d))
+		for k in range(n_p):
+			var a: float = (float(k) / float(n_p - 1) * 2.0 - 1.0) * SCATTER_SPREAD if n_p > 1 else 0.0
+			var wob: float = sin(float(k) * 2.4) * SCATTER_SPREAD * 0.35
+			var fly: Vector3 = _normalized(d + side * a + rise * wob)
+			proj.fire(o, fly, PELLET_SPEED, _w_range[kind] * 1.4, dmg, ShotStyle.Style.PELLET)
+		return n_p
 	var cos_cone: float = _cos_deg(_w_cone[kind])
 	var reach: float = _w_range[kind]
 	var cap: int = mini(_w_count[kind], _scatter_slot.size())

@@ -28,7 +28,9 @@ var profile: Profile = null
 func _init(boot: Boot, tab: String, message: String) -> void:
 	app = boot
 	profile = boot.profile
-	Ui.quad(self, _p(0.0, 0.0), Vector2(2.9, 2.05), Ui.PANEL)
+	# The panel sits on the CENTER plane; everything else is at _p (+0.03), clearly in front.
+	# Sharing one plane buried every hub label inside the panel's own box on device.
+	Ui.quad(self, Vector3(CENTER.x, CENTER.y, CENTER.z - 0.02), Vector2(2.9, 2.05), Ui.PANEL)
 	Ui.label(self, "POINTBLANK  COMMAND", _p(0.0, 0.9), 42, Ui.ACCENT)
 	Ui.label(self, "BANK  %d CR" % profile.bank, _p(0.0, 0.76), 28, Ui.GOLD)
 

@@ -136,6 +136,7 @@ func _next() -> void:
 	_hint.text = ""
 	_next_button.visible = false
 	_next_button.enabled = false
+	Audio.play("blip", -6.0, 0.08)
 
 	if profile.tts_on:
 		voice.speak(_text, float(sp.get("speed", 1.0)))
