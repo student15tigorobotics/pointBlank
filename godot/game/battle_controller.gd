@@ -35,6 +35,7 @@ const BENCH_PRINT_INTERVAL: float = 2.0
 const HUD_INTERVAL: float = 0.2
 const SHOT_DISPLAY_CAP: int = 60
 const BUILD_PICK_RADIUS: float = 0.12
+const MUZZLE_REACH: float = 2.0          # metres a miss tracer travels down the aim line
 const TEXT_HEIGHT: float = 0.25
 const CLEAR_TEXT_HEIGHT: float = 0.3
 const BENCH_SEED: int = 42
@@ -170,7 +171,14 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 	var aim_o: Vector3 = local_aim[0]
 	var aim_d: Vector3 = local_aim[1]
 	if aim.valid and controls.fire and not ui_over:
+		# ready() tells us the shot will actually discharge this frame (not blocked by cooldown).
+		var discharged: bool = weapons.ready()
+		var before: int = _shots.size()
 		weapons.try_fire(weapon_kind(), aim_o, aim_d, swarm, eco, _shots)
+		# Hitscan weapons (blaster/scatter/arc) draw nothing on a clean miss, so the trigger felt
+		# dead. Give every discharge a muzzle tracer down the aim line when the shot drew nothing.
+		if discharged and _shots.size() == before:
+			view.shoot(ShotStyle.make(aim_o, aim_o + aim_d * MUZZLE_REACH, 0.0, ShotStyle.Style.BOLT))
 
 	if controls.weapon_step != 0 and _weapon_kinds.size() > 0:
 		_weapon_idx = posmod(_weapon_idx + controls.weapon_step, _weapon_kinds.size())
@@ -368,4 +376,4 @@ func _update_hud() -> void:
 	else:
 		view.hud_tower.text = "TOWER  none unlocked"
 	view.hud_weapon.text = "WEAPON  " + str(Balance.weapon(weapon_kind())["name"])
-	view.hud_note.text = "L-trigger place   R-trigger fire   L-grip sell   R-B upgrade"
+	view.hud_note.text = "L-trig place  R-trig fire  L-grip sell  R-B upgrade   |   BOTH grips: move/zoom  sticks-click: recenter"

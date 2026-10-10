@@ -44,8 +44,14 @@ var battle: BattleController = null
 var xr_iface: OpenXRInterface = null
 var xr_cam: XRCamera3D = null
 var desk_cam: Camera3D = null
+var hands: Hands = null
+var locomotion: Locomotion = null
 var stage_index: int = -1
 var state: String = ""
+
+# Scratch for the per-frame hand ray hits [valid, length, world_pos], ordered [right, left].
+var _hand_hits: Array = [[false, 0.0, Vector3.ZERO], [false, 0.0, Vector3.ZERO]]
+var _no_presses: Array = [false, false]
 
 var _xr_on: bool = false
 var _passthrough_on: bool = false
@@ -88,6 +94,12 @@ func _ready() -> void:
 	content = Node3D.new()
 	add_child(content)
 	_apply_theme(_themes[0])
+
+	# XR aiming aids and two-handed locomotion. The world root they move/annotate is `content`.
+	if _xr_on:
+		hands = Hands.new(controls.left, controls.right)
+		add_child(hands)
+		locomotion = Locomotion.new(controls.left, controls.right, content)
 
 	if smoke_mode:
 		_run_smoke()
@@ -171,14 +183,79 @@ func _process(delta: float) -> void:
 		return
 	var dt: float = minf(delta, 0.1)
 	controls.poll(get_viewport())
+
+	# Two-handed grab moves the world instead of the player. While it runs, no game input lands.
+	var locomoting: bool = false
+	if _xr_on and locomotion != null:
+		locomoting = locomotion.update()
+		if locomoting:
+			_suppress_input()
+
 	quality.tick(dt, xr_iface if _xr_on else null, view.renderer if view != null else null)
 
-	var ui_over: bool = Ui.update(controls.ui_pointers(), controls.ui_presses())
+	var presses: Array = _no_presses if locomoting else controls.ui_presses()
+	var ui_over: bool = Ui.update(controls.ui_pointers(), presses)
+	if _xr_on and hands != null:
+		_update_hands()
 	if state == "dialogue":
 		if dialogue != null:
 			dialogue.tick(dt, controls.advance)
 	elif state == "battle":
 		_tick_battle(dt, ui_over)
+
+
+## Neutralises every action intent for this frame so a two-handed grab never fires, places or
+## sells. Held and edge intents alike are cleared; the UI press array is swapped out separately.
+func _suppress_input() -> void:
+	controls.fire = false
+	controls.sell = false
+	controls.place = false
+	controls.upgrade = false
+	controls.call_wave = false
+	controls.advance = false
+	controls.menu = false
+	controls.press_right = false
+	controls.press_left = false
+	controls.weapon_step = 0
+	controls.tower_step = 0
+
+
+## Points each hand's laser at the nearest UI button or table hit and parks the reticle there.
+func _update_hands() -> void:
+	var pointers: Array = controls.ui_pointers()
+	for i in pointers.size():
+		_hand_hits[i] = _ray_hit(pointers[i])
+	hands.update(_hand_hits)
+
+
+## Nearest hit for a pointer as [valid, length, world_pos]: UI buttons first, then the battle
+## table top. Reuses the shared _hand_hits entry is avoided; a fresh small array is returned.
+func _ray_hit(p: Pointer) -> Array:
+	if not p.valid:
+		return [false, 0.0, Vector3.ZERO]
+	var best: float = INF
+	var hit: Vector3 = Vector3.ZERO
+	for bi in Ui.buttons.size():
+		var b = Ui.buttons[bi]
+		if not is_instance_valid(b) or not b.enabled or not b.is_inside_tree():
+			continue
+		var d: float = b.hit_distance(p.origin, p.dir)
+		if d >= 0.0 and d < best:
+			best = d
+			hit = p.origin + p.dir * d
+	if view != null and is_instance_valid(view):
+		var lr: Array = view.local_ray(p)
+		var tp: Array = view.table_point(lr[0], lr[1])
+		if bool(tp[0]):
+			var xz: Vector2 = tp[1]
+			var world_hit: Vector3 = view.to_global(Vector3(xz.x, 0.0, xz.y))
+			var dist: float = p.origin.distance_to(world_hit)
+			if dist < best:
+				best = dist
+				hit = world_hit
+	if best == INF:
+		return [false, 0.0, Vector3.ZERO]
+	return [true, best, hit]
 
 
 # ---- Services used by hub.gd and dialogue.gd -----------------------------------------------
@@ -224,6 +301,10 @@ func _clear_content() -> void:
 	dialogue = null
 	view = null
 	hub = null
+	# A new scene always starts recentred, so a grab left mid-zoom cannot strand the next screen.
+	content.transform = Transform3D.IDENTITY
+	if locomotion != null:
+		locomotion.reset()
 	for child in content.get_children():
 		child.queue_free()
 
