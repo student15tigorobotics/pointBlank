@@ -144,7 +144,7 @@ func set_arms(right_kind: int, left_kind: int, tower_kind: int) -> void:
 			_tower_icon.add_child(head)
 			# Name + cost under the icon, billboarded so it reads from any angle.
 			var stats: Dictionary = Balance.tower(tower_kind)
-			var lbl: Label3D = Ui.make_label("%s  %d" % [String(stats["name"]).to_upper(), int(stats["cost"])], 40, c, 0.0012)
+			var lbl: Label3D = Ui.make_label("%s  %d" % [String(stats["name"]).to_upper(), int(stats["cost"])], 22, c, 0.0009)
 			lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 			lbl.position = Vector3(0.0, -0.045, 0.0)
 			_tower_icon.add_child(lbl)

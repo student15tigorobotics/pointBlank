@@ -49,7 +49,7 @@ var _hover: Color
 var _hover_pad: int = -1
 var _pad_mesh: MultiMesh
 var _ring: MeshInstance3D
-var _ring_mesh: CylinderMesh
+var _ring_mesh: TorusMesh
 var _ring_radius: float = -1.0
 var _tower_root: Node3D
 var _ghost: Node3D = null             # placement preview of the selected tower
@@ -170,9 +170,17 @@ func _init(stage_def: Dictionary) -> void:
 	pad_node.material_override = Meshes.instanced_material(false)
 	add_child(pad_node)
 
-	_ring_mesh = _cyl(0.2, 0.2, 0.003)
+	# Range indicator: a thin RING OUTLINE, not a filled disc - the old solid cylinder was a
+	# 0.9 m bright plate that flashed on every pad sweep and read as a giant sprite (owner
+	# screenshot 2026-10-11).
+	_ring_mesh = TorusMesh.new()
+	_ring_mesh.inner_radius = 0.19
+	_ring_mesh.outer_radius = 0.2
+	_ring_mesh.rings = 32
+	_ring_mesh.ring_segments = 6
 	_ring_radius = 0.2
 	_ring = _add_part(_ring_mesh, Meshes.solid_material(accent, 0.8, false), Vector3.ZERO)
+	_ring.scale = Vector3(1.0, 0.25, 1.0)   # squash the tube flat against the table
 	_ring.visible = false
 
 	_tower_root = Node3D.new()
@@ -424,8 +432,8 @@ func set_hover_pad(index: int) -> void:
 
 func show_ring(at: Vector2, radius: float) -> void:
 	if radius != _ring_radius:
-		_ring_mesh.top_radius = radius
-		_ring_mesh.bottom_radius = radius
+		_ring_mesh.inner_radius = radius - 0.012
+		_ring_mesh.outer_radius = radius
 		_ring_radius = radius
 	_ring.position = Vector3(at.x, 0.03, at.y)
 	_ring.visible = true
