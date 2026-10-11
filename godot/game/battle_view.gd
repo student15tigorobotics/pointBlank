@@ -615,12 +615,9 @@ func draw_allies(squad: AllySquad, dt: float) -> void:
 ## scale grows the fireball and light: a clustered mass-death renders as ONE bigger blast
 ## instead of dozens of individual ones (classic TD perf fix, owner ask 2026-10-11).
 func explosion(at: Vector3, scale: float = 1.0) -> void:
-	# No dynamic light here on purpose: real-time point lights are the single most expensive
-	# thing on the mobile renderer and they fired exactly during mass-death spikes (owner
-	# 2026-10-11: "large explosion caused the scene to slow down"). A second, brighter inner
-	# burst sells the flash instead, for the cost of one more pooled mesh.
+	# Efficiency first (owner rule 2026-10-11): ONE pooled sphere per explosion, scaled by the
+	# body count. No dynamic lights, no stacked layers - size alone represents magnitude.
 	_burst(at, 0.055 * scale, 0.28 + 0.06 * scale, 3)
-	_burst(at, 0.03 * scale, 0.1, 6)
 
 
 ## Floating text (credits, levels, warnings) that rises and fades over FLOAT_LIFE seconds.
