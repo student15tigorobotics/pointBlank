@@ -541,7 +541,10 @@ func _burst(at: Vector3, radius: float, life: float, style: int) -> void:
 	var i: int = _burst_next
 	_burst_next = (i + 1) % BURST_POOL
 	_burst_at[i] = at
-	_burst_radius[i] = maxf(radius, 0.02)
+	# Hard visual cap (efficiency first): some callers passed tower RANGE as the radius
+	# (vortex pulse = 0.5 m -> a metre-wide translucent sphere), and saturated pools of
+	# big alpha spheres were the remaining frame-killer. No burst exceeds 0.1 m.
+	_burst_radius[i] = clampf(radius, 0.02, 0.1)
 	_burst_life[i] = life
 	_burst_max[i] = life
 	var node: MeshInstance3D = _bursts[i]
