@@ -80,6 +80,15 @@ var _last_visible: int = 0                # last_good: visible at the last in-bu
 var _win_time: float = 0.0
 var _win_ms: float = 0.0
 var _win_frames: int = 0
+const CLUSTER_R: float = 0.3              # deaths this close merge into one explosion
+const CLUSTERS_MAX: int = 6               # explosion draw-calls cap per frame
+
+var _cluster_x: PackedFloat32Array = PackedFloat32Array()
+var _cluster_y: PackedFloat32Array = PackedFloat32Array()
+var _cluster_z: PackedFloat32Array = PackedFloat32Array()
+var _cluster_count: PackedInt32Array = PackedInt32Array()
+var _cluster_n: int = 0
+
 var _impacts: Array = []                  # flat [x, y, z, style, killed] runs from Projectiles.tick
 var _prev_phase: int = WaveDirector.Phase.PREP
 var _prev_core_hp: int = -1
@@ -106,6 +115,10 @@ func _init(view_ref: BattleView, profile_ref: Profile, mods: BattleModifiers, be
 	grid = SpatialGrid.new()
 	projectiles = Projectiles.new()
 	allies = AllySquad.new(view.path)
+	_cluster_x.resize(CLUSTERS_MAX)
+	_cluster_y.resize(CLUSTERS_MAX)
+	_cluster_z.resize(CLUSTERS_MAX)
+	_cluster_count.resize(CLUSTERS_MAX)
 	towers.damage_mult = mods.tower_damage_mult
 	weapons.damage_mult = mods.weapon_damage_mult
 	weapons.cooldown_mult = mods.weapon_cooldown_mult
@@ -221,11 +234,42 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 		imp += 5
 	view.draw_bolts(projectiles)
 
-	# Death explosions: light, fire and sound for every enemy that went down this frame.
+	# Death explosions, clustered: deaths within CLUSTER_R of each other this frame merge into
+	# ONE bigger blast instead of each spawning its own burst/light — a mortar landing in a
+	# crowd renders a single fat fireball, not 30 pool-churning small ones.
 	if not benchmark and swarm.death_count > 0:
+		_cluster_n = 0
 		for di in swarm.death_count:
-			view.explosion(Vector3(swarm.death_x[di], swarm.death_y[di], swarm.death_z[di]))
-		Audio.play("explosion", -4.0, 0.18)
+			var ex: float = swarm.death_x[di]
+			var ey: float = swarm.death_y[di]
+			var ez: float = swarm.death_z[di]
+			var best: int = -1
+			var best_d2: float = CLUSTER_R * CLUSTER_R
+			for c in _cluster_n:
+				var dx: float = _cluster_x[c] / _cluster_count[c] - ex
+				var dz: float = _cluster_z[c] / _cluster_count[c] - ez
+				var d2: float = dx * dx + dz * dz
+				if d2 < best_d2:
+					best_d2 = d2
+					best = c
+			if best < 0 and _cluster_n < CLUSTERS_MAX:
+				best = _cluster_n
+				_cluster_n += 1
+				_cluster_x[best] = 0.0
+				_cluster_y[best] = 0.0
+				_cluster_z[best] = 0.0
+				_cluster_count[best] = 0
+			elif best < 0:
+				best = 0
+			_cluster_x[best] += ex
+			_cluster_y[best] += ey
+			_cluster_z[best] += ez
+			_cluster_count[best] += 1
+		for c in _cluster_n:
+			var n: float = float(_cluster_count[c])
+			var centre := Vector3(_cluster_x[c] / n, _cluster_y[c] / n, _cluster_z[c] / n)
+			view.explosion(centre, minf(1.0 + 0.35 * (n - 1.0), 2.6))
+		Audio.play("explosion", minf(-4.0 + float(swarm.death_count) * 0.4, 0.0), 0.18)
 	swarm.clear_deaths()
 
 	if controls.weapon_step != 0 and _weapon_kinds.size() > 0:

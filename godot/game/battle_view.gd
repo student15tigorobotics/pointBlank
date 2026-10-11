@@ -631,15 +631,17 @@ func draw_allies(squad: AllySquad, dt: float) -> void:
 
 
 ## A death explosion: expanding burst, floor flash from the light pool, at a battlefield point.
-func explosion(at: Vector3, big: bool = false) -> void:
-	_burst(at, 0.09 if big else 0.055, 0.3, 3)
+## scale grows the fireball and light: a clustered mass-death renders as ONE bigger blast
+## instead of dozens of individual ones (classic TD perf fix, owner ask 2026-10-11).
+func explosion(at: Vector3, scale: float = 1.0) -> void:
+	_burst(at, 0.055 * scale, 0.28 + 0.06 * scale, 3)
 	var i: int = _light_next
 	_light_next = (i + 1) % LIGHT_POOL
 	_light_life[i] = LIGHT_LIFE
 	var lamp: OmniLight3D = _lights[i]
 	lamp.position = at + Vector3(0.0, 0.06, 0.0)
-	lamp.omni_range = 0.9 if big else 0.5
-	lamp.light_energy = 3.0 if big else 1.8
+	lamp.omni_range = 0.4 + 0.3 * scale
+	lamp.light_energy = 1.4 + 0.9 * scale
 	lamp.visible = true
 
 
