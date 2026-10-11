@@ -70,7 +70,7 @@ const LEMMING_NUKE_DMG: float = 90.0
 const LEMMING_NUKE_R: float = 0.28
 var _tower_idx: int = 0
 var _spawns: Array = []
-var _shots: Array = []
+var _shots: ShotBuffer = ShotBuffer.new()
 var _occupied: Dictionary = {}            # TowerField.pad_key values of placed towers
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _hp_scale: float = 1.0
@@ -265,7 +265,7 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 	var imp: int = 0
 	while imp < _impacts.size():
 		var at := Vector3(_impacts[imp], _impacts[imp + 1], _impacts[imp + 2])
-		view.shoot(ShotStyle.make(at, at, 0.03, ShotStyle.Style.BURST))
+		view.shoot(at, at, 0.03, ShotStyle.Style.BURST)
 		imp += 5
 	view.draw_bolts(projectiles)
 
@@ -334,15 +334,11 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 			Audio.play("core.damage", 0.0, 0.05)
 		_prev_core_hp = eco.core_hp
 
-	var shown: int = 0
-	for s in _shots:
-		if shown >= SHOT_DISPLAY_CAP:
-			break
-		shown += 1
-		view.shoot(s)
-	if eco.overkill_credits > overkill_before and _shots.size() > 0:
-		var last: Dictionary = _shots[_shots.size() - 1]
-		var last_to: Vector3 = last["to"]
+	var shown: int = mini(_shots.count, SHOT_DISPLAY_CAP)
+	for si in shown:
+		view.shoot(_shots.from_v(si), _shots.to_v(si), _shots.radius[si], _shots.style[si])
+	if eco.overkill_credits > overkill_before and _shots.count > 0:
+		var last_to: Vector3 = _shots.to_v(_shots.count - 1)
 		view.float_text("OVERKILL +" + str(eco.overkill_credits - overkill_before), Vector3(last_to.x, last_to.y + 0.05, last_to.z), Ui.GOLD)
 		Audio.play("overkill", -6.0)
 
@@ -413,7 +409,7 @@ func _fire_hand(hand: int, ptr: Pointer, held: bool, ws: WeaponSystem, dt: float
 			Audio.play(_fire_sound(kind), -2.0, 0.06)
 			# Instant weapons that connect with nothing draw nothing, so the trigger felt dead.
 			if launched == 0 and _shots.size() == before:
-				view.shoot(ShotStyle.make(o, o + d * MUZZLE_REACH, 0.0, ShotStyle.Style.BOLT))
+				view.shoot(o, o + d * MUZZLE_REACH, 0.0, ShotStyle.Style.BOLT)
 
 
 ## Along-path distance of the point on the lane nearest to xz (battlefield-local).

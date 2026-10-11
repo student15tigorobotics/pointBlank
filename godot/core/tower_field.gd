@@ -118,7 +118,7 @@ func pick(x: float, z: float, radius: float) -> TowerInstance:
 	return best
 
 
-func tick(dt: float, swarm: Swarm, economy: BattleEconomy, shots: Array, grid: SpatialGrid) -> void:
+func tick(dt: float, swarm: Swarm, economy: BattleEconomy, shots: ShotBuffer, grid: SpatialGrid) -> void:
 	for t: TowerInstance in towers:
 		# The vortex sucks continuously, independent of its pulse cooldown.
 		if t.kind == Balance.TowerKind.VORTEX:
@@ -159,9 +159,9 @@ func _suck(t: TowerInstance, dt: float, swarm: Swarm, grid: SpatialGrid) -> void
 
 
 ## Vortex pulse: a visual ping plus small chip damage to everything in range.
-func _fire_vortex(t: TowerInstance, swarm: Swarm, economy: BattleEconomy, shots: Array, grid: SpatialGrid) -> void:
+func _fire_vortex(t: TowerInstance, swarm: Swarm, economy: BattleEconomy, shots: ShotBuffer, grid: SpatialGrid) -> void:
 	var k: int = t.kind
-	shots.append(ShotStyle.make(_top(t), _top(t), _range[k], ShotStyle.Style.PULSE))
+	shots.add(_top(t), _top(t), _range[k], ShotStyle.Style.PULSE)
 	_collect(swarm, t.x, t.z, _range[k], grid)
 	var chip: float = 4.0 * damage_mult * pow(Balance.TOWER_UPGRADE_DAMAGE, float(t.level - 1))
 	for i in _scratch:
@@ -169,17 +169,17 @@ func _fire_vortex(t: TowerInstance, swarm: Swarm, economy: BattleEconomy, shots:
 
 
 # Turret: nearest enemy in range, one bolt.
-func _fire_single(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: Array, grid: SpatialGrid) -> void:
+func _fire_single(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: ShotBuffer, grid: SpatialGrid) -> void:
 	var target: int = _nearest(swarm, t.x, t.z, _range[t.kind], grid)
 	if target < 0:
 		t.cooldown = 0.0
 		return
-	shots.append(ShotStyle.make(_top(t), _pos(swarm, target), 0.0, ShotStyle.Style.BOLT))
+	shots.add(_top(t), _pos(swarm, target), 0.0, ShotStyle.Style.BOLT)
 	Combat.hit(swarm, target, dmg, economy)
 
 
 # Sniper: strongest current hp in range. Equal hp: the lowest index wins, as in C# (strict >).
-func _fire_strongest(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: Array, grid: SpatialGrid) -> void:
+func _fire_strongest(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: ShotBuffer, grid: SpatialGrid) -> void:
 	_collect(swarm, t.x, t.z, _range[t.kind], grid)
 	var best: int = -1
 	var best_hp: float = -1.0
@@ -193,12 +193,12 @@ func _fire_strongest(t: TowerInstance, dmg: float, swarm: Swarm, economy: Battle
 	if best < 0:
 		t.cooldown = 0.0
 		return
-	shots.append(ShotStyle.make(_top(t), _pos(swarm, best), 0.0, ShotStyle.Style.LANCE))
+	shots.add(_top(t), _pos(swarm, best), 0.0, ShotStyle.Style.LANCE)
 	Combat.hit(swarm, best, dmg, economy)
 
 
 # Mortar: nearest enemy is the impact point, splash with linear falloff to half damage at the edge.
-func _fire_shell(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: Array, grid: SpatialGrid) -> void:
+func _fire_shell(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: ShotBuffer, grid: SpatialGrid) -> void:
 	var k: int = t.kind
 	var target: int = _nearest(swarm, t.x, t.z, _range[k], grid)
 	if target < 0:
@@ -207,7 +207,7 @@ func _fire_shell(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEcon
 	var tx: float = swarm.x[target]
 	var tz: float = swarm.z[target]
 	var splash: float = _splash[k]
-	shots.append(ShotStyle.make(_top(t), Vector3(tx, 0.0, tz), splash, ShotStyle.Style.SHELL))
+	shots.add(_top(t), Vector3(tx, 0.0, tz), splash, ShotStyle.Style.SHELL)
 	_collect(swarm, tx, tz, splash, grid)
 	for i in _scratch:
 		var dx: float = swarm.x[i] - tx
@@ -217,7 +217,7 @@ func _fire_shell(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEcon
 
 
 # Tesla: chain of up to Chain+1 hits. Each link decays by 0.85 and never re-hits an enemy.
-func _fire_chain(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: Array, grid: SpatialGrid) -> void:
+func _fire_chain(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: ShotBuffer, grid: SpatialGrid) -> void:
 	var k: int = t.kind
 	var reach: float = _splash[k]
 	var first: int = _nearest(swarm, t.x, t.z, _range[k], grid)
@@ -232,7 +232,7 @@ func _fire_chain(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEcon
 	var n: int = 0
 	while n <= _chain[k] and current >= 0:
 		var dst: Vector3 = _pos(swarm, current)
-		shots.append(ShotStyle.make(src, dst, 0.0, ShotStyle.Style.CHAIN))
+		shots.add(src, dst, 0.0, ShotStyle.Style.CHAIN)
 		_marks[current] = _stamp
 		Combat.hit(swarm, current, link, economy)
 		src = dst
@@ -242,11 +242,11 @@ func _fire_chain(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEcon
 
 
 # Frost: slows and damages every enemy in range, with a visual pulse.
-func _fire_pulse(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: Array, grid: SpatialGrid) -> void:
+func _fire_pulse(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: ShotBuffer, grid: SpatialGrid) -> void:
 	var k: int = t.kind
 	var reach: float = _range[k]
 	var anchor: Vector3 = Vector3(t.x, 0.01, t.z)
-	shots.append(ShotStyle.make(anchor, anchor, reach, ShotStyle.Style.PULSE))
+	shots.add(anchor, anchor, reach, ShotStyle.Style.PULSE)
 	_collect(swarm, t.x, t.z, reach, grid)
 	var slow_mul: float = _slow[k]
 	var slow_secs: float = _slow_seconds[k]

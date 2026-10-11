@@ -64,7 +64,7 @@ func tick(dt: float) -> void:
 ## Blaster and scatter launch travelling bolts into proj (star-wars style: flight time, lead
 ## your target); rail, arc and nova stay instantaneous. proj may be null (old callers/tests),
 ## which falls back to the original hitscan behaviour.
-func try_fire(kind: int, origin: Vector3, dir: Vector3, swarm: Swarm, economy: BattleEconomy, shots: Array, proj: Projectiles = null) -> int:
+func try_fire(kind: int, origin: Vector3, dir: Vector3, swarm: Swarm, economy: BattleEconomy, shots: ShotBuffer, proj: Projectiles = null) -> int:
 	if not ready():
 		return 0
 	cooldown = _w_cooldown[kind] * cooldown_mult
@@ -86,12 +86,12 @@ const BOLT_SPEED: float = 5.0     # m/s across the table; fast but visibly in fl
 const PELLET_SPEED: float = 3.8
 const SCATTER_SPREAD: float = 0.14  # radians of fan either side for scatter pellets
 
-func _fire_blaster(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: Array, proj: Projectiles) -> int:
+func _fire_blaster(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: ShotBuffer, proj: Projectiles) -> int:
 	var target: int = _best_in_cone(swarm, o, d, _w_range[kind], _w_cone[kind])
 	if proj == null:
 		if target < 0:
 			return 0
-		shots.append(ShotStyle.make(o, _pos(swarm, target), 0.0, ShotStyle.Style.BOLT))
+		shots.add(o, _pos(swarm, target), 0.0, ShotStyle.Style.BOLT)
 		Combat.hit(swarm, target, dmg, economy)
 		return 1
 	# Soft aim assist: the bolt leaves toward the best cone target's current position, so a
@@ -101,7 +101,7 @@ func _fire_blaster(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, 
 	return 1
 
 
-func _fire_scatter(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: Array, proj: Projectiles) -> int:
+func _fire_scatter(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: ShotBuffer, proj: Projectiles) -> int:
 	if proj != null:
 		# A fan of pellets around the aim line; each is a real projectile that must connect.
 		var n_p: int = mini(_w_count[kind], 8)
@@ -140,15 +140,15 @@ func _fire_scatter(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, 
 
 	for k in range(n):
 		var i: int = _scatter_slot[k]
-		shots.append(ShotStyle.make(o, _pos(swarm, i), 0.0, ShotStyle.Style.PELLET))
+		shots.add(o, _pos(swarm, i), 0.0, ShotStyle.Style.PELLET)
 		Combat.hit(swarm, i, dmg, economy)
 	return n
 
 
-func _fire_rail(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: Array) -> int:
+func _fire_rail(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: ShotBuffer) -> int:
 	var reach: float = _w_range[kind]
 	var radius: float = _w_radius[kind]
-	shots.append(ShotStyle.make(o, o + d * reach, radius, ShotStyle.Style.BEAM))
+	shots.add(o, o + d * reach, radius, ShotStyle.Style.BEAM)
 	var hits: int = 0
 	for i in range(swarm.high_water):
 		if not swarm.alive[i]:
@@ -167,7 +167,7 @@ func _fire_rail(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, eco
 	return hits
 
 
-func _fire_arc(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: Array) -> int:
+func _fire_arc(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: ShotBuffer) -> int:
 	var current: int = _best_in_cone(swarm, o, d, _w_range[kind], _w_cone[kind])
 	if current < 0:
 		return 0
@@ -180,7 +180,7 @@ func _fire_arc(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, econ
 	var n: int = 0
 	while n < links and current >= 0:
 		var dst: Vector3 = _pos(swarm, current)
-		shots.append(ShotStyle.make(src, dst, 0.0, ShotStyle.Style.CHAIN))
+		shots.add(src, dst, 0.0, ShotStyle.Style.CHAIN)
 		_marks[current] = _stamp
 		Combat.hit(swarm, current, link, economy)
 		hits += 1
@@ -191,7 +191,7 @@ func _fire_arc(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, econ
 	return hits
 
 
-func _fire_nova(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: Array) -> int:
+func _fire_nova(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: ShotBuffer) -> int:
 	# Land on the table plane where the aim line crosses it, otherwise at max range.
 	var reach: float = _w_range[kind]
 	var radius: float = _w_radius[kind]
@@ -203,10 +203,11 @@ func _fire_nova(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, eco
 	else:
 		impact = o + d * reach
 	impact.y = 0.0
-	shots.append(ShotStyle.make(o, impact, radius, ShotStyle.Style.BURST))
+	shots.add(o, impact, radius, ShotStyle.Style.BURST)
 
 	# PackedArrays are passed by value, so the array returned by collect() must be assigned back.
-	_scratch = Combat.collect(swarm, impact.x, impact.z, radius, PackedInt32Array())
+	_scratch.clear()
+	_scratch = Combat.collect(swarm, impact.x, impact.z, radius, _scratch)
 	var count: int = _scratch.size()
 	for k in range(count):
 		var i: int = _scratch[k]

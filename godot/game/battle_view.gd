@@ -499,12 +499,9 @@ static func _tower_color(kind: int) -> Color:
 	return Meshes.hex_color(0xFF4D6D)
 
 
-## Shows one attack from the logic layer as a tracer, burst or both. shot is a ShotStyle.make dictionary.
-func shoot(shot: Dictionary) -> void:
-	var from: Vector3 = shot["from"]
-	var to: Vector3 = shot["to"]
-	var radius: float = shot["radius"]
-	var style: int = shot["style"]
+## Shows one attack from the logic layer as a tracer, burst or both. Flat args on purpose:
+## the per-shot Dictionary was the game's main per-frame heap churn (efficiency first).
+func shoot(from: Vector3, to: Vector3, radius: float, style: int) -> void:
 	if style == ShotStyle.Style.BURST:
 		_burst(to, radius, 0.25, 4)
 	elif style == ShotStyle.Style.PULSE:
