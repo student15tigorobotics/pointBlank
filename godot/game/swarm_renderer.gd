@@ -26,6 +26,14 @@ const STRIDE: int = 16
 const SPRITE_SCALE: float = 1.3       # was 3.2: oversized additive sprites bloomed into auroras
 const BAR_WIDTH: float = 0.06         # health bar full width in metres
 const BAR_HEIGHT: float = 0.008
+
+# Crowd clumping (owner rule 2026-10-11, efficiency first): when CLUMP_N+ enemies pack into
+# one CLUMP_CELL, they render as ONE big icosphere with a summed health bar instead of N
+# individual bodies. Render-side only - the simulation stays per-enemy.
+const CLUMP_N: int = 30
+const CLUMP_CELL: float = 0.25
+const CLUMP_SIDE: int = 16            # cells per axis over [-2, 2]
+const CLUMP_MAX: int = 64             # clump instances cap per frame
 const SHADE_SQUASH: float = 0.5
 const KIND_COUNT: int = 5
 
@@ -46,6 +54,7 @@ var _mm_1: MultiMesh
 var _mm_2: MultiMesh
 var _mm_sprite: MultiMesh
 var _mm_bar: MultiMesh               # health bars over near (mesh LOD) enemies
+var _mm_clump: MultiMesh             # one high-face icosphere per packed crowd
 
 # Each buffer is written only by direct member index (_buf_0[o] = v). A local alias would make every write copy the array.
 var _buf_0: PackedFloat32Array = PackedFloat32Array()
@@ -53,6 +62,15 @@ var _buf_1: PackedFloat32Array = PackedFloat32Array()
 var _buf_2: PackedFloat32Array = PackedFloat32Array()
 var _buf_sprite: PackedFloat32Array = PackedFloat32Array()
 var _buf_bar: PackedFloat32Array = PackedFloat32Array()
+var _buf_clump: PackedFloat32Array = PackedFloat32Array()
+
+# Per-cell crowd accumulators, reset each frame.
+var _cl_count: PackedInt32Array = PackedInt32Array()
+var _cl_hp: PackedFloat32Array = PackedFloat32Array()
+var _cl_maxhp: PackedFloat32Array = PackedFloat32Array()
+var _cl_cx: PackedFloat32Array = PackedFloat32Array()
+var _cl_cy: PackedFloat32Array = PackedFloat32Array()
+var _cl_cz: PackedFloat32Array = PackedFloat32Array()
 
 
 func _init(theme: Dictionary = {}, cap: int = 0) -> void:
@@ -90,17 +108,34 @@ func _init(theme: Dictionary = {}, cap: int = 0) -> void:
 	var bar_quad := QuadMesh.new()
 	bar_quad.size = Vector2(1.0, 1.0)
 	_mm_bar = _make_multimesh(bar_quad, cap)
+	# Clump body: a finer sphere (more faces) than the per-enemy polyhedra, as the "higher
+	# dimensional" packed-crowd form.
+	var clump_mesh := SphereMesh.new()
+	clump_mesh.radius = 1.0
+	clump_mesh.height = 2.0
+	clump_mesh.radial_segments = 14
+	clump_mesh.rings = 7
+	_mm_clump = _make_multimesh(clump_mesh, CLUMP_MAX)
 
 	_buf_0 = _zeroed(cap * STRIDE)
 	_buf_1 = _zeroed(cap * STRIDE)
 	_buf_2 = _zeroed(cap * STRIDE)
 	_buf_sprite = _zeroed(cap * STRIDE)
 	_buf_bar = _zeroed(cap * STRIDE)
+	_buf_clump = _zeroed(CLUMP_MAX * STRIDE)
+	var cells: int = CLUMP_SIDE * CLUMP_SIDE
+	_cl_count.resize(cells)
+	_cl_hp.resize(cells)
+	_cl_maxhp.resize(cells)
+	_cl_cx.resize(cells)
+	_cl_cy.resize(cells)
+	_cl_cz.resize(cells)
 
 	var inst_mat: StandardMaterial3D = Meshes.instanced_material()
 	_add_node(_mm_0, inst_mat)
 	_add_node(_mm_1, inst_mat)
 	_add_node(_mm_2, inst_mat)
+	_add_node(_mm_clump, inst_mat)
 	_add_node(_mm_sprite, Meshes.glow_material())
 	# Health bars: camera-facing solid quads, scale kept so each bar's width is its hp fraction.
 	var bar_mat := StandardMaterial3D.new()
@@ -137,9 +172,29 @@ func draw(swarm: Swarm, eye: Vector3, forward: Vector3) -> void:
 	var sprite_count: int = 0
 	_counts.fill(0)
 
+	# Crowd binning: cells that pack CLUMP_N+ enemies render as one body (efficiency first).
+	_cl_count.fill(0)
+	_cl_hp.fill(0.0)
+	_cl_maxhp.fill(0.0)
+	_cl_cx.fill(0.0)
+	_cl_cy.fill(0.0)
+	_cl_cz.fill(0.0)
 	for i in high:
 		if alive[i] == 0:
 			continue
+		var cc: int = _clump_cell(xs[i], zs[i])
+		_cl_count[cc] += 1
+		_cl_hp[cc] += hps[i]
+		_cl_maxhp[cc] += max_hps[i]
+		_cl_cx[cc] += xs[i]
+		_cl_cy[cc] += ys[i]
+		_cl_cz[cc] += zs[i]
+
+	for i in high:
+		if alive[i] == 0:
+			continue
+		if _cl_count[_clump_cell(xs[i], zs[i])] >= CLUMP_N:
+			continue   # drawn as part of a clump body instead
 		var px: float = xs[i]
 		var py: float = ys[i]
 		var pz: float = zs[i]
@@ -241,7 +296,56 @@ func draw(swarm: Swarm, eye: Vector3, forward: Vector3) -> void:
 			_buf_sprite[so + 15] = 1.0
 			sprite_count += 1
 
-	visible_meshes = mesh_total
+	# Clump bodies: one finer-sphere instance per packed cell, with a summed health bar.
+	var bar_n: int = mesh_total
+	var n_clumps: int = 0
+	for c in CLUMP_SIDE * CLUMP_SIDE:
+		var cnt: int = _cl_count[c]
+		if cnt < CLUMP_N or n_clumps >= CLUMP_MAX:
+			continue
+		var inv_n: float = 1.0 / float(cnt)
+		var ccx: float = _cl_cx[c] * inv_n
+		var ccy: float = _cl_cy[c] * inv_n
+		var ccz: float = _cl_cz[c] * inv_n
+		var cdx: float = ccx - ex
+		var cdy: float = ccy - ey
+		var cdz: float = ccz - ez
+		var cdist: float = sqrt(cdx * cdx + cdy * cdy + cdz * cdz)
+		if cdist > 0.6 and (cdx * fx + cdy * fy + cdz * fz) / cdist < CULL_COS:
+			continue
+		var cs2: float = clampf(0.1 + 0.09 * pow(float(cnt) / float(CLUMP_N), 0.34), 0.12, 0.3)
+		var co: int = n_clumps * STRIDE
+		_buf_clump[co] = cs2
+		_buf_clump[co + 3] = ccx
+		_buf_clump[co + 5] = cs2
+		_buf_clump[co + 7] = ccy + cs2 * 0.4
+		_buf_clump[co + 10] = cs2
+		_buf_clump[co + 11] = ccz
+		_buf_clump[co + 12] = _palette[0] * 1.1
+		_buf_clump[co + 13] = _palette[1] * 1.1
+		_buf_clump[co + 14] = _palette[2] * 1.1
+		_buf_clump[co + 15] = 1.0
+		# Summed health bar above the clump.
+		if bar_n < _capacity:
+			var cfrac: float = clampf(_cl_hp[c] / maxf(_cl_maxhp[c], 0.001), 0.0, 1.0)
+			var cbo: int = bar_n * STRIDE
+			_buf_bar[cbo] = BAR_WIDTH * 2.0 * cfrac
+			_buf_bar[cbo + 3] = ccx
+			_buf_bar[cbo + 5] = BAR_HEIGHT * 1.6
+			_buf_bar[cbo + 7] = ccy + cs2 * 0.4 + cs2 + 0.04
+			_buf_bar[cbo + 10] = 1.0
+			_buf_bar[cbo + 11] = ccz
+			_buf_bar[cbo + 12] = 1.0 - cfrac * 0.8
+			_buf_bar[cbo + 13] = cfrac
+			_buf_bar[cbo + 14] = 0.12
+			_buf_bar[cbo + 15] = 1.0
+			bar_n += 1
+		n_clumps += 1
+	_mm_clump.visible_instance_count = n_clumps
+	if n_clumps > 0:
+		_mm_clump.buffer = _buf_clump
+
+	visible_meshes = mesh_total + n_clumps
 	visible_sprites = sprite_count
 
 	# One buffer assignment per multimesh. Empty buckets are hidden and their buffer is left alone.
@@ -257,13 +361,20 @@ func draw(swarm: Swarm, eye: Vector3, forward: Vector3) -> void:
 	_mm_sprite.visible_instance_count = sprite_count
 	if sprite_count > 0:
 		_mm_sprite.buffer = _buf_sprite
-	_mm_bar.visible_instance_count = mesh_total
-	if mesh_total > 0:
+	_mm_bar.visible_instance_count = bar_n
+	if bar_n > 0:
 		_mm_bar.buffer = _buf_bar
 
 
 func visible_total() -> int:
 	return visible_meshes + visible_sprites
+
+
+## Cell index for crowd clumping over [-2, 2] squared.
+func _clump_cell(x: float, z: float) -> int:
+	var cx: int = clampi(int((x + 2.0) / CLUMP_CELL), 0, CLUMP_SIDE - 1)
+	var cz: int = clampi(int((z + 2.0) / CLUMP_CELL), 0, CLUMP_SIDE - 1)
+	return cz * CLUMP_SIDE + cx
 
 
 func _make_multimesh(mesh: Mesh, cap: int) -> MultiMesh:
