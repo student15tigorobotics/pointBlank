@@ -379,6 +379,7 @@ func _attach_hud() -> void:
 	view.hud_note = hud_bar.note
 	view.call_button = hud_bar.call_button
 	view.retreat_button = hud_bar.retreat_button
+	view.mode_button = hud_bar.mode_button
 
 
 ## Any show_hub clears the RESET arming unless the reset button's own first press passes keep_arm.

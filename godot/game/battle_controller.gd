@@ -70,6 +70,7 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _hp_scale: float = 1.0
 var _call_requested: bool = false
 var _retreat_requested: bool = false
+var _mode_requested: bool = false
 var _hud_timer: float = 0.0
 var _bench_spawn_timer: float = 0.0
 var _bench_elapsed: float = 0.0
@@ -130,6 +131,8 @@ func _init(view_ref: BattleView, profile_ref: Profile, mods: BattleModifiers, be
 
 	view.call_button.callback = Callable(self, "_on_call_pressed")
 	view.retreat_button.callback = Callable(self, "_on_retreat_pressed")
+	if view.mode_button != null:
+		view.mode_button.callback = Callable(self, "_on_mode_pressed")
 	view.hud_tower.text = ""
 
 
@@ -192,7 +195,8 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 	weapons.tick(dt)
 	weapons_left.tick(dt)
 
-	if controls.toggle_left and not benchmark:
+	if (controls.toggle_left or _mode_requested) and not benchmark:
+		_mode_requested = false
 		left_weapon_mode = not left_weapon_mode
 		view.float_text("LEFT: WEAPON" if left_weapon_mode else "LEFT: BUILDER", Vector3(0.0, CLEAR_TEXT_HEIGHT, 0.0), Ui.ACCENT)
 		Audio.play("ui.click")
@@ -420,6 +424,10 @@ static func _fire_sound(kind: int) -> String:
 	return "shot.blaster"
 
 
+func _on_mode_pressed() -> void:
+	_mode_requested = true
+
+
 func _on_call_pressed() -> void:
 	_call_requested = true
 
@@ -570,5 +578,5 @@ func _update_hud() -> void:
 	else:
 		view.hud_tower.text = "TOWER  none unlocked"
 	view.hud_weapon.text = "WEAPON  " + str(Balance.weapon(weapon_kind())["name"])
-	view.hud_note.text = ("L-trig FIRE (weapon mode)  L-X: builder  R-B upgrade   |   BOTH grips: move/zoom" if left_weapon_mode
-		else "L-trig place  R-trig fire  L-grip sell  L-X: left weapon  R-B upgrade   |   BOTH grips: move/zoom")
+	view.hud_note.text = ("L-trig FIRE  |  L-HAND button: back to builder  |  BOTH grips: move/zoom" if left_weapon_mode
+		else "L-trig place  R-trig fire  L-grip sell  |  L-HAND button: dual wield  |  BOTH grips: move/zoom")

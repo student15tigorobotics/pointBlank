@@ -39,6 +39,7 @@ var spots: Array = []                 # Vector2 pad positions
 var renderer: SwarmRenderer
 var call_button: Button3D
 var retreat_button: Button3D
+var mode_button: Button3D
 var hud_credits: Label3D
 var hud_core: Label3D
 var hud_wave: Label3D
