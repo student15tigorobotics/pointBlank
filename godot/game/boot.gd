@@ -66,6 +66,10 @@ var _stages: Array = []
 var _smoke_failures: int = 0
 var _smoke_played: bool = false
 var _smoke_finished: bool = false
+var _hub_following: bool = false
+
+const HUB_FOLLOW_START: float = 0.6   # rad (~35 deg): gaze offset that wakes the menu
+const HUB_FOLLOW_STOP: float = 0.08   # rad: offset at which it settles again
 
 
 func _ready() -> void:
@@ -209,15 +213,21 @@ func _process(delta: float) -> void:
 	if hud_bar != null and is_instance_valid(hud_bar):
 		hud_bar.follow(xr_cam if _xr_on else desk_cam, dt)
 
-	# The hub menu swings around to stay in front of the player, so they never have to
-	# turn their body to find it (owner ask 2026-10-10). Rotating the hub root about the
-	# rig origin keeps the panel's own layout intact; the lerp keeps it calm.
+	# The hub menu stays in front of the player, but with a DEAD ZONE: it holds still while
+	# the gaze is within ~35 degrees (so reading at a slight angle doesn't make it swim) and
+	# only glides across when the player has clearly turned away (owner refinement 2026-10-11).
 	if state == "hub" and hub != null and is_instance_valid(hub):
 		var cam: Node3D = xr_cam if _xr_on else desk_cam
 		var f: Vector3 = -cam.global_transform.basis.z
 		if absf(f.x) + absf(f.z) > 0.05:
 			var want: float = atan2(-f.x, -f.z)
-			hub.rotation.y = lerp_angle(hub.rotation.y, want, clampf(dt * 4.0, 0.0, 1.0))
+			var diff: float = absf(angle_difference(hub.rotation.y, want))
+			if diff > HUB_FOLLOW_START:
+				_hub_following = true
+			if _hub_following:
+				hub.rotation.y = lerp_angle(hub.rotation.y, want, clampf(dt * 3.5, 0.0, 1.0))
+				if diff < HUB_FOLLOW_STOP:
+					_hub_following = false
 	if _xr_on and hands != null:
 		_update_hands()
 		if state == "battle" and battle != null:

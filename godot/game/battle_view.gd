@@ -82,6 +82,8 @@ var _float_next: int = 0
 
 var _bolts: Array = []                # MeshInstance3D pool for travelling projectiles
 var _balls: Array = []                # MeshInstance3D pool for thrown boulders
+var _allies: Array = []               # Node3D pool for lemming allies
+var _ally_anim: float = 0.0
 var _lights: Array = []               # OmniLight3D pool for explosion flashes
 var _light_life: PackedFloat32Array = PackedFloat32Array()
 var _light_next: int = 0
@@ -116,6 +118,7 @@ func _init(stage_def: Dictionary) -> void:
 	var road_w: float = Swarm.LANE_HALF * 2.0 + 0.08
 	var road_mat: StandardMaterial3D = Meshes.solid_material(accent * 0.35, 0.5, false)
 	var path_mat: StandardMaterial3D = Meshes.solid_material(accent, 1.4, false)
+	var rail_mat: StandardMaterial3D = Meshes.solid_material(accent * 0.6, 0.3)
 	for i in (pts.size() >> 1) - 1:
 		var x0: float = pts[i * 2]
 		var z0: float = pts[i * 2 + 1]
@@ -129,6 +132,15 @@ func _init(stage_def: Dictionary) -> void:
 		road.rotation = Vector3(0.0, yaw, 0.0)
 		var seg: MeshInstance3D = _add_part(_box(Vector3(0.02, 0.009, seg_len + 0.02)), path_mat, Vector3((x0 + x1) * 0.5, 0.021, (z0 + z1) * 0.5))
 		seg.rotation = Vector3(0.0, yaw, 0.0)
+		# Raised guide rails along both lane edges: 3D tracks that a thrown boulder rides
+		# (the physics gutter in Projectiles matches their width).
+		var rail_off: float = road_w * 0.5 + 0.012
+		var perp_x: float = cos(yaw)
+		var perp_z: float = -sin(yaw)
+		for side in [-1.0, 1.0]:
+			var rail: MeshInstance3D = _add_part(_box(Vector3(0.018, 0.034, seg_len + road_w)), rail_mat,
+				Vector3((x0 + x1) * 0.5 + perp_x * rail_off * side, 0.028, (z0 + z1) * 0.5 + perp_z * rail_off * side))
+			rail.rotation = Vector3(0.0, yaw, 0.0)
 
 	# Spawn portal and core. Emission is kept low and the parts are shaded: the old bright
 	# unshaded emission (2.2) blew far past the glow bloom threshold, so the small core sphere
@@ -223,8 +235,14 @@ func _build_fx(accent: Color) -> void:
 	]
 	for s in tints.size():
 		_style_mats.append(Meshes.solid_material(tints[s], 2.5, false))
-		# Bursts get dimmer twins: a fireball at tracer emission whites out into an aurora.
-		_burst_mats.append(Meshes.solid_material(tints[s], 1.1, false))
+		# Bursts are translucent fireballs: an opaque sphere blocked the whole view when an
+		# explosion went off in front of the player (owner report 2026-10-11).
+		var bm := StandardMaterial3D.new()
+		bm.albedo_color = Color(tints[s].r, tints[s].g, tints[s].b, 0.32)
+		bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		bm.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_burst_mats.append(bm)
 
 	_base_mat = Meshes.solid_material(Color(0.12, 0.14, 0.2), 0.0)
 	_pip_mat = Meshes.solid_material(Color.WHITE, 2.0, false)
@@ -275,6 +293,19 @@ func _build_fx(accent: Color) -> void:
 		node.visible = false
 		add_child(node)
 		_bolts.append(node)
+
+	# Lemming ally pool: little marchers — blue body, pale face, green mop of hair.
+	var body_mat: StandardMaterial3D = Meshes.solid_material(Color(0.2, 0.35, 0.95), 0.15)
+	var face_mat: StandardMaterial3D = Meshes.solid_material(Color(0.95, 0.9, 0.82), 0.1)
+	var hair_mat: StandardMaterial3D = Meshes.solid_material(Color(0.25, 0.95, 0.35), 0.6, false)
+	for i in AllySquad.CAP:
+		var lem := Node3D.new()
+		lem.add_child(_make_part(_box(Vector3(0.022, 0.034, 0.016)), body_mat, Vector3(0.0, 0.017, 0.0)))
+		lem.add_child(_make_part(_sphere(0.011, 0.022), face_mat, Vector3(0.0, 0.045, 0.0)))
+		lem.add_child(_make_part(_box(Vector3(0.02, 0.008, 0.018)), hair_mat, Vector3(0.0, 0.058, 0.0)))
+		lem.visible = false
+		add_child(lem)
+		_allies.append(lem)
 
 	# Thrown boulder pool: stone spheres with their own shaded material.
 	var ball_mesh: SphereMesh = _sphere(Projectiles.BALL_RADIUS, Projectiles.BALL_RADIUS * 2.0)
@@ -573,6 +604,29 @@ func draw_bolts(proj: Projectiles) -> void:
 		if not spare_b.visible:
 			break
 		spare_b.visible = false
+
+
+## Repositions the lemming pool from the ally squad. March bob while walking; a quick
+## side-to-side shake while brawling.
+func draw_allies(squad: AllySquad, dt: float) -> void:
+	_ally_anim += dt
+	var n: int = 0
+	if squad.alive_count > 0:
+		for i in AllySquad.CAP:
+			if squad.alive[i] == 0:
+				continue
+			var lem: Node3D = _allies[n]
+			var bob: float = absf(sin(_ally_anim * 9.0 + float(i))) * 0.012
+			var shake: float = (sin(_ally_anim * 22.0 + float(i)) * 0.1) if squad.fighting[i] == 1 else 0.0
+			lem.position = Vector3(squad.x[i], bob, squad.z[i])
+			lem.rotation = Vector3(0.0, squad.heading[i] + shake, 0.0)
+			lem.visible = true
+			n += 1
+	for k in range(n, AllySquad.CAP):
+		var spare: Node3D = _allies[k]
+		if not spare.visible:
+			break
+		spare.visible = false
 
 
 ## A death explosion: expanding burst, floor flash from the light pool, at a battlefield point.

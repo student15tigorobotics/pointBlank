@@ -170,6 +170,9 @@ func _tick_ball(i: int, dt: float, swarm: Swarm, grid: SpatialGrid, economy: Bat
 		dx[i] *= drag
 		dz[i] *= drag
 		flat *= drag
+		# Track guidance: a ball rolling on the enemy roadway is gripped by its side rails
+		# and steered along the lane like a bowling gutter, mowing down the column.
+		_steer_on_track(i, swarm.path, dt, flat)
 	left[i] -= flat * dt
 
 	# Crush everything the ball touches; continuous dps melts small enemies on contact.
@@ -187,3 +190,57 @@ func _tick_ball(i: int, dt: float, swarm: Swarm, grid: SpatialGrid, economy: Bat
 		impacts.append(pz[i])
 		impacts.append(int(ShotStyle.Style.SHELL))
 		impacts.append(false)
+
+
+const TRACK_HALF: float = 0.16     # how far from the lane centre the rails still grip
+const TRACK_STEER: float = 7.0     # how hard the rails bend the roll onto the lane
+
+## Aligns a grounded ball's velocity with the nearest path segment when it is on the roadway,
+## and nudges it toward the centre line. Rolls with the ball's own direction of travel.
+func _steer_on_track(i: int, path: BattlePath, dt: float, flat: float) -> void:
+	if flat < 0.05 or path == null:
+		return
+	var best_d2: float = TRACK_HALF * TRACK_HALF
+	var tx: float = 0.0
+	var tz: float = 0.0
+	var cx_: float = 0.0
+	var cz_: float = 0.0
+	var found: bool = false
+	for s in path.segment_count():
+		var ax: float = path.vx[s]
+		var az: float = path.vz[s]
+		var bx: float = path.vx[s + 1]
+		var bz: float = path.vz[s + 1]
+		var ex: float = bx - ax
+		var ez: float = bz - az
+		var ll: float = ex * ex + ez * ez
+		if ll < 1e-8:
+			continue
+		var t: float = clampf(((px[i] - ax) * ex + (pz[i] - az) * ez) / ll, 0.0, 1.0)
+		var qx: float = ax + ex * t
+		var qz: float = az + ez * t
+		var ddx: float = px[i] - qx
+		var ddz: float = pz[i] - qz
+		var d2: float = ddx * ddx + ddz * ddz
+		if d2 < best_d2:
+			best_d2 = d2
+			var inv: float = 1.0 / sqrt(ll)
+			tx = ex * inv
+			tz = ez * inv
+			cx_ = qx
+			cz_ = qz
+			found = true
+	if not found:
+		return
+	# Follow the tangent in whichever direction the ball is already rolling.
+	if dx[i] * tx + dz[i] * tz < 0.0:
+		tx = -tx
+		tz = -tz
+	var w: float = clampf(TRACK_STEER * dt, 0.0, 1.0)
+	var want_x: float = tx * flat + (cx_ - px[i]) * 2.0
+	var want_z: float = tz * flat + (cz_ - pz[i]) * 2.0
+	var wl: float = sqrt(want_x * want_x + want_z * want_z)
+	if wl < 1e-6:
+		return
+	dx[i] = lerpf(dx[i], want_x / wl * flat, w)
+	dz[i] = lerpf(dz[i], want_z / wl * flat, w)

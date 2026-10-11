@@ -14,11 +14,11 @@ extends RefCounted
 
 enum EnemyKind { DRONE, WALKER, SHADE, BRUTE, TITAN }
 enum MeshShape { TETRA, OCTA, ICOSA }
-enum WeaponKind { BLASTER, SCATTER, RAIL, ARC, NOVA, SABER, BOULDER }
+enum WeaponKind { BLASTER, SCATTER, RAIL, ARC, NOVA, SABER, BOULDER, SQUAD }
 enum TowerKind { TURRET, TESLA, FROST, MORTAR, SNIPER, VORTEX }
 enum ThemeKind { SPACE_OPERA, METROPOLIS, NOIR_HARBOR, EGYPT, NORSE, NEON_FUTURE, NEO_KYOTO }
 
-const WEAPON_LAST: int = WeaponKind.BOULDER   # iterate WeaponKind with range(WEAPON_LAST + 1)
+const WEAPON_LAST: int = WeaponKind.SQUAD     # iterate WeaponKind with range(WEAPON_LAST + 1)
 const TOWER_LAST: int = TowerKind.VORTEX      # iterate TowerKind with range(TOWER_LAST + 1)
 
 # Logical battlefield: square of side 3 m centred on the table origin, table top at y = 0.
@@ -76,10 +76,13 @@ static func weapon(kind: int) -> Dictionary:
 		WeaponKind.SABER:
 			# Melee: damage is per second to enemies touching the blade; radius = blade reach.
 			return {"name": "Saber", "cooldown": 0.0, "damage": 60.0, "range": 0.85, "cone_deg": 0.0, "radius": 0.07, "count": 99, "unlock_cost": 650}
-		_:
+		WeaponKind.BOULDER:
 			# Charged throw: hold the trigger to wind up, release to hurl. damage = crush per second
 			# while rolling over enemies; range = max roll distance at full charge.
 			return {"name": "Boulder", "cooldown": 0.9, "damage": 220.0, "range": 3.0, "cone_deg": 0.0, "radius": 0.07, "count": 99, "unlock_cost": 800}
+		_:
+			# Lemming squad: point at the path to drop `count` allies who march against the flow.
+			return {"name": "Lemmings", "cooldown": 5.0, "damage": 0.0, "range": 6.0, "cone_deg": 0.0, "radius": 0.0, "count": 3, "unlock_cost": 750}
 
 
 ## keys: name, cost, range, cooldown, damage, splash, slow, slow_seconds, chain

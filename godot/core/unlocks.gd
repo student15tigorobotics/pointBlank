@@ -14,7 +14,7 @@ extends RefCounted
 ##
 ## Def dict: {key: String, title: String, cost: int}. Keys are "W:SCATTER" style (per port contract).
 
-const WEAPON_NAMES: Array = ["BLASTER", "SCATTER", "RAIL", "ARC", "NOVA", "SABER", "BOULDER"]
+const WEAPON_NAMES: Array = ["BLASTER", "SCATTER", "RAIL", "ARC", "NOVA", "SABER", "BOULDER", "SQUAD"]
 const TOWER_NAMES: Array = ["TURRET", "TESLA", "FROST", "MORTAR", "SNIPER", "VORTEX"]
 
 static var _cache: Array = []
@@ -29,6 +29,7 @@ static func all() -> Array:
 			_def("W:NOVA", "Nova Grenade", int(Balance.weapon(Balance.WeaponKind.NOVA)["unlock_cost"])),
 			_def("W:SABER", "Plasma Saber", int(Balance.weapon(Balance.WeaponKind.SABER)["unlock_cost"])),
 			_def("W:BOULDER", "Kinetic Boulder", int(Balance.weapon(Balance.WeaponKind.BOULDER)["unlock_cost"])),
+			_def("W:SQUAD", "Lemming Squad", int(Balance.weapon(Balance.WeaponKind.SQUAD)["unlock_cost"])),
 			_def("T:TESLA", "Tesla Coil", 250),
 			_def("T:FROST", "Frost Emitter", 320),
 			_def("T:MORTAR", "Mortar Battery", 400),

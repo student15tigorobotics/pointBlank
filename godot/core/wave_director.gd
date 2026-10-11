@@ -47,14 +47,42 @@ func wave_count() -> int:
 	return _waves.size()
 
 
-## Starts the wave now. Returns the early-call bonus for the prep time skipped.
+## Starts the wave now. During PREP it skips the countdown; during an ACTIVE wave it RELEASES
+## THE NEXT WAVE ON TOP of the current one (groups merge into the live schedule), stacking
+## enemies for a bigger bonus — risk against reward (owner ask 2026-10-11: game too easy,
+## allow early wave release). Returns the early-call bonus.
 func call_early(bonus_mult: float, economy: BattleEconomy) -> int:
-	if phase != Phase.PREP:
-		return 0
-	var bonus: int = BattleEconomy.early_call_bonus(prep_remaining, bonus_mult)
-	economy.on_early_call(bonus)
-	_begin()
-	return bonus
+	if phase == Phase.PREP:
+		var bonus: int = BattleEconomy.early_call_bonus(prep_remaining, bonus_mult)
+		economy.on_early_call(bonus)
+		_begin()
+		return bonus
+	if phase == Phase.ACTIVE and wave_index + 1 < _waves.size():
+		wave_index += 1
+		_merge_wave_groups(wave_index)
+		var stack_bonus: int = BattleEconomy.early_call_bonus(_prep_seconds, bonus_mult)
+		economy.on_early_call(stack_bonus)
+		return stack_bonus
+	return 0
+
+
+## Appends a wave's groups to the live schedule, delays measured from now.
+func _merge_wave_groups(index: int) -> void:
+	var groups: Array = _waves[index]["groups"]
+	var base: int = _g_count.size()
+	var n: int = groups.size()
+	_g_kind.resize(base + n)
+	_g_count.resize(base + n)
+	_g_interval.resize(base + n)
+	_next_spawn.resize(base + n)
+	_emitted.resize(base + n)
+	for g in range(n):
+		var grp: Dictionary = groups[g]
+		_g_kind[base + g] = int(grp["kind"])
+		_g_count[base + g] = int(grp["count"])
+		_g_interval[base + g] = float(grp["interval"])
+		_next_spawn[base + g] = _wave_time + float(grp["delay"])
+		_emitted[base + g] = 0
 
 
 ## Advances timers and appends the EnemyKind ints to spawn this frame to spawns.

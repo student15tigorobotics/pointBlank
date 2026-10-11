@@ -49,6 +49,7 @@ var weapons: WeaponSystem
 var weapons_left: WeaponSystem       # independent cooldown for the dual-wield left hand
 var grid: SpatialGrid
 var projectiles: Projectiles
+var allies: AllySquad
 var left_weapon_mode: bool = false   # left hand: false = builder, true = weapon (left X toggles)
 var benchmark: bool = false
 var outcome: int = Outcome.RUNNING
@@ -103,6 +104,7 @@ func _init(view_ref: BattleView, profile_ref: Profile, mods: BattleModifiers, be
 	weapons_left = WeaponSystem.new()
 	grid = SpatialGrid.new()
 	projectiles = Projectiles.new()
+	allies = AllySquad.new(view.path)
 	towers.damage_mult = mods.tower_damage_mult
 	weapons.damage_mult = mods.weapon_damage_mult
 	weapons.cooldown_mult = mods.weapon_cooldown_mult
@@ -199,6 +201,11 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 	_fire_hand(0, controls.aim_pointer(), controls.fire, weapons, dt, ui_over)
 	if left_weapon_mode and not benchmark:
 		_fire_hand(1, controls.place_pointer(), controls.fire_left, weapons_left, dt, ui_over)
+
+	# Lemming allies brawl the swarm; the view animates them.
+	if not benchmark:
+		allies.tick(dt, swarm, grid, eco)
+		view.draw_allies(allies, dt)
 
 	# Travelling bolts: advance, land hits, and show their impacts.
 	_impacts.clear()
@@ -305,6 +312,21 @@ func _fire_hand(hand: int, ptr: Pointer, held: bool, ws: WeaponSystem, dt: float
 			_saber_slash(o, d, ws, dt)
 		return
 
+	if kind == Balance.WeaponKind.SQUAD:
+		# Point at the roadway and squeeze: a squad of lemmings drops there and marches
+		# against the flow, brawling everything it meets.
+		if held and not ui_over and ws.ready():
+			var tp: Array = view.table_point(o, d)
+			if tp[0]:
+				var xz: Vector2 = tp[1]
+				var squad_stats: Dictionary = Balance.weapon(kind)
+				var made: int = allies.spawn_at(_nearest_path_dist(xz), int(squad_stats["count"]))
+				if made > 0:
+					ws.cooldown = float(squad_stats["cooldown"]) * ws.cooldown_mult
+					view.float_text("LEMMINGS x%d" % made, Vector3(xz.x, TEXT_HEIGHT, xz.y), Ui.ACCENT)
+					Audio.play("tower.place", -2.0, 0.1)
+		return
+
 	if kind == Balance.WeaponKind.BOULDER:
 		var stats: Dictionary = Balance.weapon(kind)
 		if held and not ui_over and ws.ready():
@@ -333,6 +355,29 @@ func _fire_hand(hand: int, ptr: Pointer, held: bool, ws: WeaponSystem, dt: float
 			# Instant weapons that connect with nothing draw nothing, so the trigger felt dead.
 			if launched == 0 and _shots.size() == before:
 				view.shoot(ShotStyle.make(o, o + d * MUZZLE_REACH, 0.0, ShotStyle.Style.BOLT))
+
+
+## Along-path distance of the point on the lane nearest to xz (battlefield-local).
+func _nearest_path_dist(xz: Vector2) -> float:
+	var path: BattlePath = view.path
+	var best_d2: float = INF
+	var best_dist: float = 0.0
+	for s in path.segment_count():
+		var ax: float = path.vx[s]
+		var az: float = path.vz[s]
+		var ex: float = path.vx[s + 1] - ax
+		var ez: float = path.vz[s + 1] - az
+		var ll: float = ex * ex + ez * ez
+		if ll < 1e-8:
+			continue
+		var t: float = clampf(((xz.x - ax) * ex + (xz.y - az) * ez) / ll, 0.0, 1.0)
+		var dx: float = xz.x - (ax + ex * t)
+		var dz: float = xz.y - (az + ez * t)
+		var d2: float = dx * dx + dz * dz
+		if d2 < best_d2:
+			best_d2 = d2
+			best_dist = path.cum[s] + sqrt(ll) * t
+	return best_dist
 
 
 ## Continuous plasma-saber damage: enemies near the blade line melt at damage-per-second.
