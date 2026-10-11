@@ -317,13 +317,14 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 	_handle_build(controls, ui_over)
 
 	var aim: Pointer = controls.aim_pointer()
-	# Desktop right-click upgrade path (XR upgrades via X/Y on a tower in _handle_build).
-	if controls.upgrade and aim.valid and not ui_over:
-		var local_aim: Array = view.local_ray(aim)
-		var tp: Array = view.table_point(local_aim[0], local_aim[1])
+	# Upgrade: left Y in XR (building hand points at the tower), right-click on desktop.
+	var up_ptr: Pointer = controls.place_pointer()
+	if controls.upgrade and up_ptr.valid and not ui_over:
+		var local_up: Array = view.local_ray(up_ptr)
+		var tp: Array = view.table_point(local_up[0], local_up[1])
 		if tp[0]:
 			var xz: Vector2 = tp[1]
-			var t: TowerInstance = towers.pick(xz.x, xz.y, BUILD_PICK_RADIUS)
+			var t: TowerInstance = towers.pick(xz.x, xz.y, BUILD_PICK_RADIUS * 1.5)
 			if t != null:
 				_upgrade_tower(t, xz)
 
@@ -521,17 +522,10 @@ func _handle_build(controls: Controls, ui_over: bool) -> void:
 		return
 
 	view.hide_tower_ghost()
-	if controls.place and place_p.valid and not ui_over:
+	if controls.place and controls.sell and place_p.valid and not ui_over:
 		var tp: Array = view.table_point(po, pd)
 		if tp[0]:
-			var xz: Vector2 = tp[1]
-			if controls.sell:
-				_sell_near(xz)
-			else:
-				# X/Y while pointing at a standing tower upgrades it in place.
-				var t: TowerInstance = towers.pick(xz.x, xz.y, BUILD_PICK_RADIUS)
-				if t != null:
-					_upgrade_tower(t, xz)
+			_sell_near(tp[1])
 			view.hide_ring()
 			return
 	view.hide_ring()
@@ -653,4 +647,4 @@ func _update_hud() -> void:
 	else:
 		view.hud_tower.text = "TOWER  none unlocked"
 	view.hud_weapon.text = "WPN  L %s | R %s" % [Balance.weapon(weapon_kind_left())["name"], Balance.weapon(weapon_kind())["name"]]
-	view.hud_note.text = "Triggers fire | X/Y place/upgrade | grip+X/Y sell | A nuke lems  B deploy | sticks: weapons+tower | BOTH grips move"
+	view.hud_note.text = "Triggers fire | X place  Y upgrade  grip+X sell | A nuke lems  B deploy | sticks: weapons+tower | BOTH grips move"

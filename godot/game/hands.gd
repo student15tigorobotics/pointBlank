@@ -142,6 +142,12 @@ func set_arms(right_kind: int, left_kind: int, tower_kind: int) -> void:
 			head.material_override = mat
 			head.scale = Vector3(0.5, 0.5, 0.5)
 			_tower_icon.add_child(head)
+			# Name + cost under the icon, billboarded so it reads from any angle.
+			var stats: Dictionary = Balance.tower(tower_kind)
+			var lbl: Label3D = Ui.make_label("%s  %d" % [String(stats["name"]).to_upper(), int(stats["cost"])], 40, c, 0.0012)
+			lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			lbl.position = Vector3(0.0, -0.045, 0.0)
+			_tower_icon.add_child(lbl)
 			_tower_icon.position = Vector3(0.0, 0.1, 0.02)
 			_controllers[1].add_child(_tower_icon)
 	if _tower_icon != null:

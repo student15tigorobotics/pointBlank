@@ -65,6 +65,7 @@ var _left_stick_armed: bool = true      # left stick X (left weapon cycle)
 var _left_stick_y_armed: bool = true    # left stick Y (tower cycle)
 var _right_stick_armed: bool = true     # right stick X (right weapon cycle)
 var _left_face_touch_down: bool = false
+var _left_y_touch_down: bool = false
 var _ra_touch_down: bool = false
 var _rb_touch_down: bool = false
 var _ra_touch_ms: int = 0
@@ -153,13 +154,19 @@ func _poll_xr() -> void:
 	_left_trigger_down = l_down
 	fire_left = l_down
 
-	# Tower placement: left X or Y, accepting click OR touch edges because the Wave runtime
-	# swallows face-button clicks on some firmware. A resting thumb costs one spurious edge.
-	var l_face_click: bool = left.is_button_pressed("ax_button") or left.is_button_pressed("by_button")
-	var l_face_touch: bool = left.is_button_pressed("ax_touch") or left.is_button_pressed("by_touch")
-	place = (l_face_click and not _left_ax_down) or (l_face_touch and not _left_face_touch_down)
-	_left_ax_down = l_face_click
-	_left_face_touch_down = l_face_touch
+	# Left face buttons split (owner 2026-10-11): X places, Y upgrades. Click OR touch edges
+	# are accepted because the Wave runtime swallows face-button clicks on some firmware.
+	var l_x_click: bool = left.is_button_pressed("ax_button")
+	var l_x_touch: bool = left.is_button_pressed("ax_touch")
+	place = (l_x_click and not _left_ax_down) or (l_x_touch and not _left_face_touch_down)
+	_left_ax_down = l_x_click
+	_left_face_touch_down = l_x_touch
+
+	var l_y_click: bool = left.is_button_pressed("by_button")
+	var l_y_touch: bool = left.is_button_pressed("by_touch")
+	upgrade = (l_y_click and not _left_by_down) or (l_y_touch and not _left_y_touch_down)
+	_left_by_down = l_y_click
+	_left_y_touch_down = l_y_touch
 
 	# Lemming tool on the right face buttons: A detonates, B deploys from the core end.
 	# Click edge fires immediately; a touch counts only as a quick TAP (press->release under
