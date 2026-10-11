@@ -97,14 +97,10 @@ func _init(theme: Dictionary = {}, cap: int = 0) -> void:
 	var bar_quad := QuadMesh.new()
 	bar_quad.size = Vector2(1.0, 1.0)
 	_mm_bar = _make_multimesh(bar_quad, cap)
-	# Clump body: a finer sphere (more faces) than the per-enemy polyhedra, as the "higher
-	# dimensional" packed-crowd form.
-	var clump_mesh := SphereMesh.new()
-	clump_mesh.radius = 1.0
-	clump_mesh.height = 2.0
-	clump_mesh.radial_segments = 14
-	clump_mesh.rings = 7
-	_mm_clump = _make_multimesh(clump_mesh, CLUMP_MAX)
+	# Clump body: ONE pre-baked crowd mesh (a mound of small enemy bodies combined into a
+	# single mesh), so a merged mob still costs exactly one instance but reads as a group
+	# of enemies rather than a sphere (owner 2026-10-12).
+	_mm_clump = _make_multimesh(_build_crowd_mesh(), CLUMP_MAX)
 
 	_buf_0 = _zeroed(cap * STRIDE)
 	_buf_1 = _zeroed(cap * STRIDE)
@@ -170,16 +166,16 @@ func draw(swarm: Swarm, eye: Vector3, forward: Vector3) -> void:
 		if eye_dist > 0.6 and (dx * fx + dy * fy + dz * fz) / eye_dist < CULL_COS:
 			continue
 
-		# A merged crowd is drawn as ONE finer sphere with a wide summed-hp bar. The clump is
-		# a persistent simulation object (swarm.merge_crowds), so no binning happens here.
+		# A merged crowd draws as ONE baked crowd-mound mesh with a wide summed-hp bar. The
+		# clump is a persistent simulation object (swarm.merge_crowds); no binning here.
 		if clumps[i] > 1 and n_clumps < CLUMP_MAX:
 			var ccount: int = clumps[i]
-			var cs2: float = clampf(0.1 + 0.09 * pow(float(ccount) / float(CLUMP_N), 0.34), 0.12, 0.3)
+			var cs2: float = clampf(0.14 + 0.12 * pow(float(ccount) / float(CLUMP_N), 0.34), 0.16, 0.4)
 			var co: int = n_clumps * STRIDE
 			_buf_clump[co] = cs2
 			_buf_clump[co + 3] = px
 			_buf_clump[co + 5] = cs2
-			_buf_clump[co + 7] = py + cs2 * 0.5
+			_buf_clump[co + 7] = py
 			_buf_clump[co + 10] = cs2
 			_buf_clump[co + 11] = pz
 			_buf_clump[co + 12] = _palette[0] * 1.1
@@ -322,6 +318,37 @@ func draw(swarm: Swarm, eye: Vector3, forward: Vector3) -> void:
 
 func visible_total() -> int:
 	return visible_meshes + visible_sprites
+
+
+## Bakes a mound of small enemy bodies into one unit-sized mesh. Deterministic layout; per-body
+## brightness is baked into vertex colours and multiplies the instance's palette tint.
+func _build_crowd_mesh() -> ArrayMesh:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# [count, ring radius, height] per layer: wide base, packed middle, a couple on top.
+	var layers: Array = [[8, 0.62, 0.16], [5, 0.34, 0.45], [2, 0.12, 0.74]]
+	var shapes: Array = [Balance.MeshShape.TETRA, Balance.MeshShape.OCTA]
+	for layer in layers:
+		var n: int = layer[0]
+		for b in n:
+			var ang: float = TAU * float(b) / float(n) + rng.randf() * 0.5
+			var rr: float = float(layer[1]) * (0.85 + rng.randf() * 0.3)
+			var centre := Vector3(cos(ang) * rr, float(layer[2]) + rng.randf() * 0.06, sin(ang) * rr)
+			var body_scale: float = 0.24 + rng.randf() * 0.12
+			var yaw: float = rng.randf() * TAU
+			var bright: float = 0.7 + rng.randf() * 0.4
+			var xf := Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * body_scale), centre)
+			var src: ArrayMesh = Meshes.shape_mesh(shapes[(b + n) % shapes.size()])
+			var arrays: Array = src.surface_get_arrays(0)
+			var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+			var norms: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+			for v in verts.size():
+				st.set_color(Color(bright, bright, bright))
+				st.set_normal(xf.basis * norms[v])
+				st.add_vertex(xf * verts[v])
+	return st.commit()
 
 
 
