@@ -97,6 +97,12 @@ func on_kill(kind: int, overkill: float) -> void:
 		earn(whole)
 
 
+## Credits the absorbed members of a merged crowd when the clump dies.
+func bonus_kills(n: int, carried_reward: int) -> void:
+	kills += n
+	earn(carried_reward)
+
+
 func on_leak(kind: int) -> void:
 	leaks += 1
 	core_hp = maxi(0, core_hp - _core_damage[kind])

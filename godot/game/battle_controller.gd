@@ -64,6 +64,7 @@ var _tower_range: PackedFloat32Array = PackedFloat32Array()   # indexed by Balan
 var _weapon_idx: int = 0             # right hand
 var _weapon_idx_left: int = 0        # left hand (hands carry different weapons)
 var _lemming_cd: float = 0.0
+var _merge_timer: float = 0.5
 
 const LEMMING_CD: float = 5.0
 const LEMMING_NUKE_DMG: float = 90.0
@@ -233,6 +234,13 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 
 	# Enemy body collision runs in battles; the benchmark skips it to keep measuring the renderer.
 	swarm.step(dt, eco, null if benchmark else grid)
+	# Persistent crowd merging: a couple of scans per second, never per frame (owner 2026-10-12).
+	# 30+ bodies in a cell become ONE enemy with summed hp until defeated.
+	if not benchmark:
+		_merge_timer -= dt
+		if _merge_timer <= 0.0:
+			_merge_timer = 0.5
+			swarm.merge_crowds()
 	grid.rebuild(swarm)
 	towers.tick(dt, swarm, eco, _shots, grid)
 	weapons.tick(dt)

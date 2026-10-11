@@ -45,6 +45,8 @@ var kind: PackedInt32Array = PackedInt32Array()
 var alive: PackedByteArray = PackedByteArray()   # 1 = alive
 var seg: PackedInt32Array = PackedInt32Array()   # current segment index (monotonic hint)
 var lane: PackedFloat32Array = PackedFloat32Array()  # lateral offset from the path centre, +-LANE_HALF
+var clump_count: PackedInt32Array = PackedInt32Array()  # 1 = individual; N>1 = a merged crowd of N
+var extra_reward: PackedInt32Array = PackedInt32Array() # credits carried by absorbed members
 
 var path: BattlePath
 
@@ -79,7 +81,13 @@ func _init(p: BattlePath, cap: int) -> void:
 	alive.resize(cap)
 	seg.resize(cap)
 	lane.resize(cap)
+	clump_count.resize(cap)
+	extra_reward.resize(cap)
 	_free.resize(cap)
+	var cells: int = MERGE_SIDE * MERGE_SIDE
+	_merge_count.resize(cells)
+	_merge_head.resize(cells)
+	_merge_next.resize(cap)
 	death_x.resize(DEATH_CAP)
 	death_y.resize(DEATH_CAP)
 	death_z.resize(DEATH_CAP)
@@ -126,6 +134,8 @@ func spawn(kind_i: int, hp_scale: float, seed_value: float) -> int:
 	alive_count += 1
 	seg[i] = 0
 	lane[i] = (seed_value * 2.0 - 1.0) * LANE_HALF * 0.8
+	clump_count[i] = 1
+	extra_reward[i] = 0
 	_place(i)
 	return i
 
@@ -176,7 +186,8 @@ func step(dt: float, economy: BattleEconomy, grid: SpatialGrid = null) -> void:
 			advance = _separate(i, advance, dt, grid)
 		dist[i] += advance
 		if dist[i] >= plen:
-			economy.on_leak(kind[i])
+			for leak_n in mini(clump_count[i], 40):
+				economy.on_leak(kind[i])
 			kill(i)
 			continue
 		_place(i)
@@ -274,3 +285,71 @@ func _place(i: int) -> void:
 	z[i] = pz - hx * l
 	y[i] = _hover[kind[i]] + 0.02 * seed_v[i]
 	heading[i] = atan2(hx, hz)
+
+
+# ---- Crowd merging (persistent clumps) --------------------------------------------------------
+# Once CLUMP_THRESHOLD enemies pack one cell they MERGE into a single real enemy with summed
+# hit points and carried rewards, and stay merged until defeated (owner 2026-10-12: per-frame
+# re-binning in the renderer was wasted computation). merge_crowds is called a couple of times
+# a second by the controller, never per frame.
+
+const CLUMP_THRESHOLD: int = 30
+const MERGE_CELL: float = 0.25
+const MERGE_SIDE: int = 16
+
+var _merge_count: PackedInt32Array = PackedInt32Array()
+var _merge_head: PackedInt32Array = PackedInt32Array()
+var _merge_next: PackedInt32Array = PackedInt32Array()
+
+
+func merge_crowds() -> void:
+	if alive_count < CLUMP_THRESHOLD:
+		return
+	_merge_count.fill(0)
+	_merge_head.fill(-1)
+	for i in high_water:
+		if alive[i] == 0:
+			continue
+		var c: int = _merge_cell(x[i], z[i])
+		_merge_count[c] += clump_count[i]
+		_merge_next[i] = _merge_head[c]
+		_merge_head[c] = i
+	for c in MERGE_SIDE * MERGE_SIDE:
+		if _merge_count[c] < CLUMP_THRESHOLD:
+			continue
+		# Survivor: the member furthest along the path (an existing clump wins), so the merged
+		# body never teleports backward. Everyone else is absorbed silently - no death event.
+		var survivor: int = -1
+		var i2: int = _merge_head[c]
+		while i2 >= 0:
+			if survivor < 0 or clump_count[i2] > clump_count[survivor] \
+					or (clump_count[i2] == clump_count[survivor] and dist[i2] > dist[survivor]):
+				survivor = i2
+			i2 = _merge_next[i2]
+		var total_hp: float = 0.0
+		var total_max: float = 0.0
+		var total_n: int = 0
+		var total_reward: int = 0
+		i2 = _merge_head[c]
+		while i2 >= 0:
+			total_hp += hp[i2]
+			total_max += max_hp[i2]
+			total_n += clump_count[i2]
+			total_reward += extra_reward[i2]
+			if i2 != survivor:
+				total_reward += int(Balance.enemy(kind[i2])["reward"])
+				alive[i2] = 0
+				alive_count -= 1
+				_free[_free_count] = i2
+				_free_count += 1
+			i2 = _merge_next[i2]
+		hp[survivor] = total_hp
+		max_hp[survivor] = total_max
+		clump_count[survivor] = total_n
+		extra_reward[survivor] = total_reward
+
+
+func _merge_cell(px: float, pz: float) -> int:
+	var cx: int = clampi(int((px + 2.0) / MERGE_CELL), 0, MERGE_SIDE - 1)
+	var cz: int = clampi(int((pz + 2.0) / MERGE_CELL), 0, MERGE_SIDE - 1)
+	return cz * MERGE_SIDE + cx

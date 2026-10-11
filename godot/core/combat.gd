@@ -34,6 +34,9 @@ static func hit(swarm: Swarm, i: int, damage: float, economy: BattleEconomy) -> 
 	var overkill: float = -left
 	swarm.set_hp(i, 0.0)
 	economy.on_kill(swarm.kind[i], overkill)
+	# A merged crowd dies as one body but pays out as many (kills + carried rewards).
+	if swarm.clump_count[i] > 1:
+		economy.bonus_kills(swarm.clump_count[i] - 1, swarm.extra_reward[i])
 	swarm.kill(i)
 	return true
 
