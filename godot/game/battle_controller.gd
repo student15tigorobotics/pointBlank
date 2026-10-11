@@ -303,7 +303,7 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 		for c in _cluster_n:
 			var n: float = float(_cluster_count[c])
 			var centre := Vector3(_cluster_x[c] / n, _cluster_y[c] / n, _cluster_z[c] / n)
-			view.explosion(centre, minf(1.0 + 0.3 * (n - 1.0), 1.8))
+			view.explosion(centre, minf(1.0 + 0.3 * (n - 1.0), 1.5))
 		Audio.play("explosion", minf(-4.0 + float(swarm.death_count) * 0.4, 0.0), 0.18)
 	swarm.clear_deaths()
 

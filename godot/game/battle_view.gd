@@ -25,8 +25,6 @@ const TRACER_POOL: int = 160
 const BURST_POOL: int = 16
 const BOLT_POOL: int = 96
 const BALL_POOL: int = 8
-const LIGHT_POOL: int = 4
-const LIGHT_LIFE: float = 0.28
 const FLOAT_POOL: int = 24
 const FLOAT_LIFE: float = 1.1
 const PAD_PICK_RADIUS_SQ: float = 0.01        # 0.1 m
@@ -84,9 +82,6 @@ var _bolts: Array = []                # MeshInstance3D pool for travelling proje
 var _balls: Array = []                # MeshInstance3D pool for thrown boulders
 var _allies: Array = []               # Node3D pool for lemming allies
 var _ally_anim: float = 0.0
-var _lights: Array = []               # OmniLight3D pool for explosion flashes
-var _light_life: PackedFloat32Array = PackedFloat32Array()
-var _light_next: int = 0
 
 var _local_out: Array = [Vector3.ZERO, Vector3.ZERO]
 var _pad_out: Array = [-1, Vector2.ZERO]
@@ -241,7 +236,6 @@ func _build_fx(accent: Color) -> void:
 		bm.albedo_color = Color(tints[s].r, tints[s].g, tints[s].b, 0.24)
 		bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		bm.cull_mode = BaseMaterial3D.CULL_DISABLED
 		_burst_mats.append(bm)
 
 	_base_mat = Meshes.solid_material(Color(0.12, 0.14, 0.2), 0.0)
@@ -318,18 +312,6 @@ func _build_fx(accent: Color) -> void:
 		add_child(node)
 		_balls.append(node)
 
-	# Explosion flash pool: brief point lights so deaths actually light the table up.
-	_light_life.resize(LIGHT_POOL)
-	_light_life.fill(0.0)
-	for i in LIGHT_POOL:
-		var lamp := OmniLight3D.new()
-		lamp.light_color = accent
-		lamp.omni_range = 0.6
-		lamp.light_energy = 0.0
-		lamp.shadow_enabled = false
-		lamp.visible = false
-		add_child(lamp)
-		_lights.append(lamp)
 
 
 ## Converts a world pointer to battlefield-local space. Returns [origin: Vector3, dir: Vector3] (shared scratch).
@@ -633,15 +615,12 @@ func draw_allies(squad: AllySquad, dt: float) -> void:
 ## scale grows the fireball and light: a clustered mass-death renders as ONE bigger blast
 ## instead of dozens of individual ones (classic TD perf fix, owner ask 2026-10-11).
 func explosion(at: Vector3, scale: float = 1.0) -> void:
+	# No dynamic light here on purpose: real-time point lights are the single most expensive
+	# thing on the mobile renderer and they fired exactly during mass-death spikes (owner
+	# 2026-10-11: "large explosion caused the scene to slow down"). A second, brighter inner
+	# burst sells the flash instead, for the cost of one more pooled mesh.
 	_burst(at, 0.055 * scale, 0.28 + 0.06 * scale, 3)
-	var i: int = _light_next
-	_light_next = (i + 1) % LIGHT_POOL
-	_light_life[i] = LIGHT_LIFE
-	var lamp: OmniLight3D = _lights[i]
-	lamp.position = at + Vector3(0.0, 0.06, 0.0)
-	lamp.omni_range = 0.35 + 0.2 * scale
-	lamp.light_energy = 1.1 + 0.5 * scale
-	lamp.visible = true
+	_burst(at, 0.03 * scale, 0.1, 6)
 
 
 ## Floating text (credits, levels, warnings) that rises and fades over FLOAT_LIFE seconds.
@@ -677,16 +656,6 @@ func tick_fx(dt: float) -> void:
 		var size_v: float = _burst_radius[i] * 2.0 * (0.3 + 0.7 * progress)
 		node.position = _burst_at[i]
 		node.scale = Vector3(size_v, size_v, size_v)
-	for i in LIGHT_POOL:
-		if _light_life[i] <= 0.0:
-			continue
-		_light_life[i] -= dt
-		var lamp: OmniLight3D = _lights[i]
-		if _light_life[i] <= 0.0:
-			lamp.visible = false
-			lamp.light_energy = 0.0
-			continue
-		lamp.light_energy *= maxf(1.0 - dt * 9.0, 0.0)
 	for i in FLOAT_POOL:
 		if _float_life[i] <= 0.0:
 			continue
