@@ -622,5 +622,5 @@ func _update_hud() -> void:
 	else:
 		view.hud_tower.text = "TOWER  none unlocked"
 	view.hud_weapon.text = "WEAPON  " + str(Balance.weapon(weapon_kind())["name"])
-	view.hud_note.text = ("L-trig FIRE  |  L-HAND button: back to builder  |  BOTH grips: move/zoom" if left_weapon_mode
-		else "L-trig place  R-trig fire  L-grip sell  |  L-HAND button: dual wield  |  BOTH grips: move/zoom")
+	view.hud_note.text = ("L-trig FIRE  |  L-stick: tower/weapon  |  L-HAND button: builder  |  BOTH grips: move/zoom" if left_weapon_mode
+		else "L-trig place  R-trig fire  L-grip sell  |  L-stick: tower/weapon  |  L-HAND: dual wield  |  BOTH grips: move/zoom")

@@ -57,7 +57,8 @@ var _right_ax_down: bool = false
 var _left_ax_down: bool = false
 var _left_by_down: bool = false
 var _left_menu_down: bool = false
-var _left_stick_armed: bool = true
+var _left_stick_armed: bool = true      # left stick X (weapon cycle)
+var _left_stick_y_armed: bool = true    # left stick Y (tower cycle)
 var _right_stick_armed: bool = true
 
 # Desktop state
@@ -142,9 +143,7 @@ func _poll_xr() -> void:
 	advance = r_ax and not _right_ax_down
 	_right_ax_down = r_ax
 
-	var rs: Vector2i = _stick_step(right.get_vector2("primary").x, _right_stick_armed)
-	weapon_step = rs.x
-	_right_stick_armed = rs.y == 1
+	# The right stick is deliberately unbound: flicks while aiming kept switching weapons.
 
 	# Left hand: place (edge), UI press, sell (grip held), call wave (B/Y), menu, tower stick.
 	var l_down: bool = _trigger_down(_left_trigger_down, left.get_float("trigger"), left.is_button_pressed("trigger_click"))
@@ -167,9 +166,19 @@ func _poll_xr() -> void:
 	menu = l_menu and not _left_menu_down
 	_left_menu_down = l_menu
 
-	var ls: Vector2i = _stick_step(left.get_vector2("primary").x, _left_stick_armed)
-	tower_step = ls.x
-	_left_stick_armed = ls.y == 1
+	# Left stick is the selector (owner ask 2026-10-11): up/down cycles towers, left/right
+	# cycles weapons. The dominant axis wins so a diagonal flick never switches both.
+	var lv: Vector2 = left.get_vector2("primary")
+	if absf(lv.x) >= absf(lv.y):
+		var wx: Vector2i = _stick_step(lv.x, _left_stick_armed)
+		weapon_step = wx.x
+		_left_stick_armed = wx.y == 1
+		_left_stick_y_armed = _left_stick_y_armed or absf(lv.y) < STICK_ARM
+	else:
+		var ty: Vector2i = _stick_step(lv.y, _left_stick_y_armed)
+		tower_step = ty.x
+		_left_stick_y_armed = ty.y == 1
+		_left_stick_armed = _left_stick_armed or absf(lv.x) < STICK_ARM
 
 	# An untracked pointer is invalid, so its press must not reach the UI either.
 	_xr_presses[0] = press_right and right_ptr.valid
