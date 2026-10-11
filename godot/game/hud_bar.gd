@@ -28,9 +28,6 @@ var call_button: Button3D
 var retreat_button: Button3D
 
 
-var mode_button: Button3D
-
-
 func _init() -> void:
 	Ui.quad(self, Vector3(0.0, 0.0, -0.012), Vector2(1.8, 0.2), Ui.PANEL)
 	credits = Ui.label_left(self, "", Vector3(-0.72, 0.055, 0.004), 22, Ui.GOLD)
@@ -41,9 +38,6 @@ func _init() -> void:
 	note = Ui.label_left(self, "", Vector3(-0.72, -0.062, 0.004), 13, Ui.DIM)
 	call_button = Ui.button(self, "CALL WAVE", Vector3(0.33, 0.045, 0.012), Vector2(0.28, 0.075), Ui.ACCENT, Callable(), 20)
 	retreat_button = Ui.button(self, "RETREAT", Vector3(0.33, -0.048, 0.012), Vector2(0.28, 0.075), Ui.WARN, Callable(), 20)
-	# The Wave runtime swallows X/Y clicks on some firmware (same bug SF2 hit), so the
-	# dual-wield toggle lives on the bar too — pointer + trigger always works.
-	mode_button = Ui.button(self, "L-HAND ⇄", Vector3(0.66, 0.0, 0.012), Vector2(0.26, 0.09), Ui.GOLD, Callable(), 18)
 
 
 ## Places the bar instantly at its anchored spot (first frame, screenshots, scene changes).

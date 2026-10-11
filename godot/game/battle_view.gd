@@ -39,7 +39,6 @@ var spots: Array = []                 # Vector2 pad positions
 var renderer: SwarmRenderer
 var call_button: Button3D
 var retreat_button: Button3D
-var mode_button: Button3D
 var hud_credits: Label3D
 var hud_core: Label3D
 var hud_wave: Label3D
@@ -239,7 +238,7 @@ func _build_fx(accent: Color) -> void:
 		# Bursts are translucent fireballs: an opaque sphere blocked the whole view when an
 		# explosion went off in front of the player (owner report 2026-10-11).
 		var bm := StandardMaterial3D.new()
-		bm.albedo_color = Color(tints[s].r, tints[s].g, tints[s].b, 0.32)
+		bm.albedo_color = Color(tints[s].r, tints[s].g, tints[s].b, 0.24)
 		bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		bm.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -640,8 +639,8 @@ func explosion(at: Vector3, scale: float = 1.0) -> void:
 	_light_life[i] = LIGHT_LIFE
 	var lamp: OmniLight3D = _lights[i]
 	lamp.position = at + Vector3(0.0, 0.06, 0.0)
-	lamp.omni_range = 0.4 + 0.3 * scale
-	lamp.light_energy = 1.4 + 0.9 * scale
+	lamp.omni_range = 0.35 + 0.2 * scale
+	lamp.light_energy = 1.1 + 0.5 * scale
 	lamp.visible = true
 
 

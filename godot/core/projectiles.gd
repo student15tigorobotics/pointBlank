@@ -39,7 +39,7 @@ const KIND_BOLT: int = 0
 const KIND_BALL: int = 1
 const BALL_RADIUS: float = 0.05
 const BALL_GRAVITY: float = 6.0     # softened for table scale; real 9.8 made throws dive
-const BALL_FRICTION: float = 0.55   # fraction of speed lost per second while rolling
+const BALL_FRICTION: float = 0.32   # fraction of speed lost per second while rolling
 const BALL_CRUSH_RADIUS: float = 0.11
 
 var _buf: PackedInt32Array = PackedInt32Array()
@@ -182,7 +182,7 @@ func _tick_ball(i: int, dt: float, swarm: Swarm, grid: SpatialGrid, economy: Bat
 		for k2 in _buf.size():
 			Combat.hit(swarm, _buf[k2], damage[i] * dt, economy)
 
-	if left[i] <= 0.0 or (py[i] <= BALL_RADIUS + 0.001 and flat < 0.12):
+	if left[i] <= 0.0 or (py[i] <= BALL_RADIUS + 0.001 and flat < 0.08):
 		alive[i] = 0
 		alive_count -= 1
 		impacts.append(px[i])

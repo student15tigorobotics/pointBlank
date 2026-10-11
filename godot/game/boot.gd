@@ -173,16 +173,14 @@ func _apply_theme(t: Dictionary) -> void:
 	env.fog_enabled = true
 	env.fog_light_color = fog_color
 	env.fog_density = 0.015
-	# Kept gentle: stronger glow ballooned every emissive into view-filling auroras in VR.
-	env.glow_enabled = profile.quality > 0
-	env.glow_intensity = 0.35
-	env.glow_bloom = 0.02
+	# Bloom is OFF for good: every pass of it kept turning emissives into background auroras
+	# (owner 2026-10-11). Neon comes from emissive materials alone now - crisper in VR.
+	env.glow_enabled = false
 
 
 ## Applies the saved graphics tier to the governor and the glow setting. Called from the options page.
 func apply_quality() -> void:
 	quality.set_tier(profile.quality)
-	env.glow_enabled = profile.quality > 0
 
 
 func _process(delta: float) -> void:
@@ -231,9 +229,9 @@ func _process(delta: float) -> void:
 	if _xr_on and hands != null:
 		_update_hands()
 		if state == "battle" and battle != null:
-			hands.set_arms(battle.weapon_kind(), battle.left_weapon_mode)
+			hands.set_arms(battle.weapon_kind(), battle.weapon_kind_left(), battle.tower_choice())
 		else:
-			hands.set_arms(Balance.WeaponKind.BLASTER, false)
+			hands.set_arms(Balance.WeaponKind.BLASTER, Balance.WeaponKind.BLASTER, -1)
 	if state == "dialogue":
 		if dialogue != null:
 			dialogue.tick(dt, controls.advance)
@@ -379,7 +377,6 @@ func _attach_hud() -> void:
 	view.hud_note = hud_bar.note
 	view.call_button = hud_bar.call_button
 	view.retreat_button = hud_bar.retreat_button
-	view.mode_button = hud_bar.mode_button
 
 
 ## Any show_hub clears the RESET arming unless the reset button's own first press passes keep_arm.

@@ -50,7 +50,7 @@ var weapons_left: WeaponSystem       # independent cooldown for the dual-wield l
 var grid: SpatialGrid
 var projectiles: Projectiles
 var allies: AllySquad
-var left_weapon_mode: bool = false   # left hand: false = builder, true = weapon (left X toggles)
+var profile_has_squad: bool = false  # Lemming Squad unlock gates the A/B lemming tool
 var benchmark: bool = false
 var outcome: int = Outcome.RUNNING
 var benchmark_result: Dictionary = {}     # {alive, visible, tier, stop} once the benchmark has ended
@@ -61,7 +61,13 @@ var _tier: int = 1
 var _weapon_kinds: PackedInt32Array = PackedInt32Array()
 var _tower_kinds: PackedInt32Array = PackedInt32Array()
 var _tower_range: PackedFloat32Array = PackedFloat32Array()   # indexed by Balance.TowerKind
-var _weapon_idx: int = 0
+var _weapon_idx: int = 0             # right hand
+var _weapon_idx_left: int = 0        # left hand (hands carry different weapons)
+var _lemming_cd: float = 0.0
+
+const LEMMING_CD: float = 5.0
+const LEMMING_NUKE_DMG: float = 90.0
+const LEMMING_NUKE_R: float = 0.28
 var _tower_idx: int = 0
 var _spawns: Array = []
 var _shots: Array = []
@@ -70,7 +76,6 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _hp_scale: float = 1.0
 var _call_requested: bool = false
 var _retreat_requested: bool = false
-var _mode_requested: bool = false
 var _hud_timer: float = 0.0
 var _bench_spawn_timer: float = 0.0
 var _bench_elapsed: float = 0.0
@@ -130,8 +135,12 @@ func _init(view_ref: BattleView, profile_ref: Profile, mods: BattleModifiers, be
 	# The benchmark fires only the blaster and builds nothing.
 	for k in Balance.WEAPON_LAST + 1:
 		var owned: bool = (k == Balance.WeaponKind.BLASTER) if bench else profile_ref.has_weapon(k)
-		if owned:
-			_weapon_kinds.append(k)
+		if not owned:
+			continue
+		if k == Balance.WeaponKind.SQUAD:
+			profile_has_squad = true   # lemmings are the A/B tool now, not a cycled weapon
+			continue
+		_weapon_kinds.append(k)
 	for k in Balance.TOWER_LAST + 1:
 		if not bench and profile_ref.has_tower(k):
 			_tower_kinds.append(k)
@@ -144,8 +153,6 @@ func _init(view_ref: BattleView, profile_ref: Profile, mods: BattleModifiers, be
 
 	view.call_button.callback = Callable(self, "_on_call_pressed")
 	view.retreat_button.callback = Callable(self, "_on_retreat_pressed")
-	if view.mode_button != null:
-		view.mode_button.callback = Callable(self, "_on_mode_pressed")
 	view.hud_tower.text = ""
 
 
@@ -153,6 +160,29 @@ func weapon_kind() -> int:
 	if _weapon_kinds.size() == 0:
 		return Balance.WeaponKind.BLASTER
 	return _weapon_kinds[_weapon_idx]
+
+
+func weapon_kind_left() -> int:
+	if _weapon_kinds.size() == 0:
+		return Balance.WeaponKind.BLASTER
+	return _weapon_kinds[_weapon_idx_left]
+
+
+## A-button nuke: every lemming detonates, damaging enemies around it, then is gone.
+func _nuke_lemmings() -> void:
+	for i in AllySquad.CAP:
+		if allies.alive[i] == 0:
+			continue
+		var at := Vector3(allies.x[i], 0.04, allies.z[i])
+		_impacts_scratch.clear()
+		_impacts_scratch = grid.collect(allies.x[i], allies.z[i], LEMMING_NUKE_R, _impacts_scratch)
+		for k in _impacts_scratch.size():
+			Combat.hit(swarm, _impacts_scratch[k], LEMMING_NUKE_DMG, eco)
+		view.explosion(at, 1.2)
+		allies.alive[i] = 0
+	allies.alive_count = 0
+	Audio.play("explosion", -2.0, 0.15)
+	view.float_text("LEMMINGS DETONATED", Vector3(0.0, CLEAR_TEXT_HEIGHT, 0.0), Ui.WARN)
 
 
 func tower_choice() -> int:
@@ -208,19 +238,24 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 	weapons.tick(dt)
 	weapons_left.tick(dt)
 
-	if (controls.toggle_left or _mode_requested) and not benchmark:
-		_mode_requested = false
-		left_weapon_mode = not left_weapon_mode
-		view.float_text("LEFT: WEAPON" if left_weapon_mode else "LEFT: BUILDER", Vector3(0.0, CLEAR_TEXT_HEIGHT, 0.0), Ui.ACCENT)
-		Audio.play("ui.click")
-
-	# Weapon hands. The right hand always fires; the left fires too when toggled to weapon mode.
+	# Both hands are always weapons, each with its own selection and cooldown.
 	_fire_hand(0, controls.aim_pointer(), controls.fire, weapons, dt, ui_over)
-	if left_weapon_mode and not benchmark:
+	if not benchmark:
 		_fire_hand(1, controls.place_pointer(), controls.fire_left, weapons_left, dt, ui_over)
 
-	# Lemming allies brawl the swarm; the view animates them.
+	# Lemming tool (right A/B): B releases a squad from the core end to sweep the whole lane;
+	# A detonates every lemming on the field (they can block AND shield enemies - the nuke
+	# clears your own blockade, classic Lemmings style).
 	if not benchmark:
+		_lemming_cd -= dt
+		if controls.lemming_deploy and _lemming_cd <= 0.0 and profile_has_squad:
+			var made: int = allies.spawn_at(view.path.length - 0.12, 3)
+			if made > 0:
+				_lemming_cd = LEMMING_CD
+				view.float_text("LEMMINGS x%d" % made, Vector3(0.0, CLEAR_TEXT_HEIGHT, 0.0), Ui.ACCENT)
+				Audio.play("tower.place", -2.0, 0.1)
+		if controls.lemming_explode and allies.alive_count > 0:
+			_nuke_lemmings()
 		allies.tick(dt, swarm, grid, eco)
 		view.draw_allies(allies, dt)
 
@@ -268,18 +303,21 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 		for c in _cluster_n:
 			var n: float = float(_cluster_count[c])
 			var centre := Vector3(_cluster_x[c] / n, _cluster_y[c] / n, _cluster_z[c] / n)
-			view.explosion(centre, minf(1.0 + 0.35 * (n - 1.0), 2.6))
+			view.explosion(centre, minf(1.0 + 0.3 * (n - 1.0), 1.8))
 		Audio.play("explosion", minf(-4.0 + float(swarm.death_count) * 0.4, 0.0), 0.18)
 	swarm.clear_deaths()
 
 	if controls.weapon_step != 0 and _weapon_kinds.size() > 0:
-		_weapon_idx = posmod(_weapon_idx + controls.weapon_step, _weapon_kinds.size())
+		_weapon_idx_left = posmod(_weapon_idx_left + controls.weapon_step, _weapon_kinds.size())
+	if controls.weapon_step_right != 0 and _weapon_kinds.size() > 0:
+		_weapon_idx = posmod(_weapon_idx + controls.weapon_step_right, _weapon_kinds.size())
 	if controls.tower_step != 0 and _tower_kinds.size() > 0:
 		_tower_idx = posmod(_tower_idx + controls.tower_step, _tower_kinds.size())
 
 	_handle_build(controls, ui_over)
 
 	var aim: Pointer = controls.aim_pointer()
+	# Desktop right-click upgrade path (XR upgrades via X/Y on a tower in _handle_build).
 	if controls.upgrade and aim.valid and not ui_over:
 		var local_aim: Array = view.local_ray(aim)
 		var tp: Array = view.table_point(local_aim[0], local_aim[1])
@@ -287,20 +325,7 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 			var xz: Vector2 = tp[1]
 			var t: TowerInstance = towers.pick(xz.x, xz.y, BUILD_PICK_RADIUS)
 			if t != null:
-				var ok: bool = towers.upgrade(t, eco)
-				var msg: String
-				var col: Color
-				if ok:
-					msg = "LEVEL " + str(t.level)
-					col = Ui.GOLD
-					Audio.play("tower.upgrade")
-				elif t.level >= Balance.MAX_TOWER_LEVEL:
-					msg = "MAX LEVEL"
-					col = Ui.WARN
-				else:
-					msg = "NO CREDITS"
-					col = Ui.WARN
-				view.float_text(msg, Vector3(xz.x, TEXT_HEIGHT, xz.y), col)
+				_upgrade_tower(t, xz)
 
 	# Core damage feedback: leaks this frame dropped the core.
 	if not benchmark:
@@ -342,7 +367,7 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 ## One hand's weapon handling for this frame. hand: 0 = right, 1 = left. The fire origin is
 ## pushed MUZZLE_LEN down the aim ray so bolts leave from the gun's muzzle tip, not the grip.
 func _fire_hand(hand: int, ptr: Pointer, held: bool, ws: WeaponSystem, dt: float, ui_over: bool) -> void:
-	var kind: int = weapon_kind()
+	var kind: int = weapon_kind() if hand == 0 else weapon_kind_left()
 	var was: bool = _was_fire[hand]
 	_was_fire[hand] = held and ptr.valid and not ui_over
 	if not ptr.valid:
@@ -358,21 +383,6 @@ func _fire_hand(hand: int, ptr: Pointer, held: bool, ws: WeaponSystem, dt: float
 	if kind == Balance.WeaponKind.SABER:
 		if held and not ui_over:
 			_saber_slash(o, d, ws, dt)
-		return
-
-	if kind == Balance.WeaponKind.SQUAD:
-		# Point at the roadway and squeeze: a squad of lemmings drops there and marches
-		# against the flow, brawling everything it meets.
-		if held and not ui_over and ws.ready():
-			var tp: Array = view.table_point(o, d)
-			if tp[0]:
-				var xz: Vector2 = tp[1]
-				var squad_stats: Dictionary = Balance.weapon(kind)
-				var made: int = allies.spawn_at(_nearest_path_dist(xz), int(squad_stats["count"]))
-				if made > 0:
-					ws.cooldown = float(squad_stats["cooldown"]) * ws.cooldown_mult
-					view.float_text("LEMMINGS x%d" % made, Vector3(xz.x, TEXT_HEIGHT, xz.y), Ui.ACCENT)
-					Audio.play("tower.place", -2.0, 0.1)
 		return
 
 	if kind == Balance.WeaponKind.BOULDER:
@@ -468,10 +478,6 @@ static func _fire_sound(kind: int) -> String:
 	return "shot.blaster"
 
 
-func _on_mode_pressed() -> void:
-	_mode_requested = true
-
-
 func _on_call_pressed() -> void:
 	_call_requested = true
 
@@ -480,9 +486,11 @@ func _on_retreat_pressed() -> void:
 	_retreat_requested = true
 
 
+## Building rides alongside the always-armed left hand: hover a pad with the left pointer and
+## press X/Y to place; X/Y on an existing tower upgrades it; grip + X/Y sells. The trigger
+## never builds any more - it always shoots.
 func _handle_build(controls: Controls, ui_over: bool) -> void:
-	# A left hand in weapon mode fires instead of building; every build affordance sleeps.
-	if benchmark or _tower_kinds.size() == 0 or left_weapon_mode:
+	if benchmark or _tower_kinds.size() == 0:
 		view.set_hover_pad(-1)
 		view.hide_ring()
 		view.hide_tower_ghost()
@@ -502,8 +510,6 @@ func _handle_build(controls: Controls, ui_over: bool) -> void:
 
 	if pad >= 0:
 		view.show_ring(spot, _tower_range[tower_choice()])
-		# A translucent stand-in of the selected tower on the pad, so you see what you are
-		# about to build, not just its range (owner ask). Hidden the frame it becomes real.
 		if controls.place:
 			view.hide_tower_ghost()
 		else:
@@ -515,13 +521,38 @@ func _handle_build(controls: Controls, ui_over: bool) -> void:
 		return
 
 	view.hide_tower_ghost()
-	if controls.place and controls.sell and place_p.valid and not ui_over:
+	if controls.place and place_p.valid and not ui_over:
 		var tp: Array = view.table_point(po, pd)
 		if tp[0]:
-			_sell_near(tp[1])
+			var xz: Vector2 = tp[1]
+			if controls.sell:
+				_sell_near(xz)
+			else:
+				# X/Y while pointing at a standing tower upgrades it in place.
+				var t: TowerInstance = towers.pick(xz.x, xz.y, BUILD_PICK_RADIUS)
+				if t != null:
+					_upgrade_tower(t, xz)
 			view.hide_ring()
 			return
 	view.hide_ring()
+
+
+## Shared upgrade feedback, used by the X/Y contextual press and the desktop right-click.
+func _upgrade_tower(t: TowerInstance, xz: Vector2) -> void:
+	var ok: bool = towers.upgrade(t, eco)
+	var msg: String
+	var col: Color
+	if ok:
+		msg = "LEVEL " + str(t.level)
+		col = Ui.GOLD
+		Audio.play("tower.upgrade")
+	elif t.level >= Balance.MAX_TOWER_LEVEL:
+		msg = "MAX LEVEL"
+		col = Ui.WARN
+	else:
+		msg = "NO CREDITS"
+		col = Ui.WARN
+	view.float_text(msg, Vector3(xz.x, TEXT_HEIGHT, xz.y), col)
 
 
 func _place_at(spot: Vector2) -> void:
@@ -621,6 +652,5 @@ func _update_hud() -> void:
 		view.hud_tower.text = "TOWER  " + str(Balance.tower(kind)["name"]) + "  " + str(eco.tower_cost(kind)) + " CR"
 	else:
 		view.hud_tower.text = "TOWER  none unlocked"
-	view.hud_weapon.text = "WEAPON  " + str(Balance.weapon(weapon_kind())["name"])
-	view.hud_note.text = ("L-trig FIRE  |  L-stick: tower/weapon  |  L-HAND button: builder  |  BOTH grips: move/zoom" if left_weapon_mode
-		else "L-trig place  R-trig fire  L-grip sell  |  L-stick: tower/weapon  |  L-HAND: dual wield  |  BOTH grips: move/zoom")
+	view.hud_weapon.text = "WPN  L %s | R %s" % [Balance.weapon(weapon_kind_left())["name"], Balance.weapon(weapon_kind())["name"]]
+	view.hud_note.text = "Triggers fire | X/Y place/upgrade | grip+X/Y sell | A nuke lems  B deploy | sticks: weapons+tower | BOTH grips move"

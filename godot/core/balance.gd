@@ -79,7 +79,7 @@ static func weapon(kind: int) -> Dictionary:
 		WeaponKind.BOULDER:
 			# Charged throw: hold the trigger to wind up, release to hurl. damage = crush per second
 			# while rolling over enemies; range = max roll distance at full charge.
-			return {"name": "Boulder", "cooldown": 0.9, "damage": 220.0, "range": 3.0, "cone_deg": 0.0, "radius": 0.07, "count": 99, "unlock_cost": 800}
+			return {"name": "Boulder", "cooldown": 0.9, "damage": 220.0, "range": 5.5, "cone_deg": 0.0, "radius": 0.07, "count": 99, "unlock_cost": 800}
 		_:
 			# Lemming squad: point at the path to drop `count` allies who march against the flow.
 			return {"name": "Lemmings", "cooldown": 5.0, "damage": 0.0, "range": 6.0, "cone_deg": 0.0, "radius": 0.0, "count": 3, "unlock_cost": 750}

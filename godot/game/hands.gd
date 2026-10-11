@@ -22,8 +22,10 @@ const DEFAULT_LEN: float = 2.5
 var _beams: Array = []          # MeshInstance3D per hand, child of that controller
 var _reticles: Array = []       # MeshInstance3D per hand, child of self (world space)
 var _controllers: Array = []    # XRController3D, ordered like Controls.ui_pointers(): [right, left]
-var _guns: Array = []           # gun prop per hand; left shown only in weapon mode
-var _blades: Array = []         # saber blade per hand, shown when the saber is selected
+var _guns: Array = []           # gun prop per hand (both hands are always armed)
+var _blades: Array = []         # saber blade per hand, shown when that hand holds the saber
+var _tower_icon: Node3D = null  # floating mini tower above the left grip
+var _icon_kind: int = -2
 
 
 func _init(left: XRController3D, right: XRController3D) -> void:
@@ -116,12 +118,34 @@ func _build_gun(hand: XRController3D) -> void:
 	_blades.append(blade)
 
 
-## Weapon props per hand. kind drives the saber blade; left_weapon shows the left gun.
-func set_arms(kind: int, left_weapon: bool) -> void:
-	var saber: bool = kind == Balance.WeaponKind.SABER
-	_guns[1].visible = left_weapon
-	_blades[0].visible = saber
-	_blades[1].visible = saber and left_weapon
+## Weapon props per hand: both hands are always armed and may hold different weapons.
+## tower_kind >= 0 also floats a mini icon of the selected tower above the left grip.
+func set_arms(right_kind: int, left_kind: int, tower_kind: int) -> void:
+	_guns[0].visible = true
+	_guns[1].visible = true
+	_blades[0].visible = right_kind == Balance.WeaponKind.SABER
+	_blades[1].visible = left_kind == Balance.WeaponKind.SABER
+	if tower_kind != _icon_kind:
+		_icon_kind = tower_kind
+		if _tower_icon != null:
+			_tower_icon.queue_free()
+			_tower_icon = null
+		if tower_kind >= 0:
+			_tower_icon = Node3D.new()
+			var c: Color = BattleView._tower_color(tower_kind)
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = Color(c.r, c.g, c.b, 0.85)
+			mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			var head := MeshInstance3D.new()
+			head.mesh = BattleView._head_mesh(tower_kind)
+			head.material_override = mat
+			head.scale = Vector3(0.5, 0.5, 0.5)
+			_tower_icon.add_child(head)
+			_tower_icon.position = Vector3(0.0, 0.1, 0.02)
+			_controllers[1].add_child(_tower_icon)
+	if _tower_icon != null:
+		_tower_icon.rotate_y(0.03)   # slow spin so it reads as an icon, not debris
 
 
 static func _part(mesh: Mesh, mat: Material, at: Vector3, rot: Vector3) -> MeshInstance3D:

@@ -32,9 +32,13 @@ var mouse_ptr: Pointer = Pointer.new()
 
 # Held intents
 var fire: bool = false          # right trigger held (XR) / left mouse held (desktop)
-var fire_left: bool = false     # left trigger held (XR only; used when the left hand is a weapon)
+var fire_left: bool = false     # left trigger held (XR; both hands are always weapons)
 var sell: bool = false          # left grip held (XR) / shift held (desktop)
-var toggle_left: bool = false   # left X edge: switch the left hand between builder and weapon
+
+# Lemming tool (right A/B, click edge or touch-tap) and selectors.
+var lemming_explode: bool = false   # right A: detonate every deployed lemming
+var lemming_deploy: bool = false    # right B: release a squad from the core end
+var weapon_step_right: int = 0      # right stick X: right-hand weapon cycle
 
 # Edge intents, true for the one frame they occur
 var press_right: bool = false   # right trigger edge, UI press for the right pointer
@@ -57,9 +61,16 @@ var _right_ax_down: bool = false
 var _left_ax_down: bool = false
 var _left_by_down: bool = false
 var _left_menu_down: bool = false
-var _left_stick_armed: bool = true      # left stick X (weapon cycle)
+var _left_stick_armed: bool = true      # left stick X (left weapon cycle)
 var _left_stick_y_armed: bool = true    # left stick Y (tower cycle)
-var _right_stick_armed: bool = true
+var _right_stick_armed: bool = true     # right stick X (right weapon cycle)
+var _left_face_touch_down: bool = false
+var _ra_touch_down: bool = false
+var _rb_touch_down: bool = false
+var _ra_touch_ms: int = 0
+var _rb_touch_ms: int = 0
+
+const TAP_MS: int = 350
 
 # Desktop state
 var _mouse_left_down: bool = false
@@ -91,12 +102,14 @@ func poll(viewport: Viewport) -> void:
 	call_wave = false
 	advance = false
 	menu = false
-	toggle_left = false
+	lemming_explode = false
+	lemming_deploy = false
 	press_right = false
 	press_left = false
 	press_mouse = false
 	tower_step = 0
 	weapon_step = 0
+	weapon_step_right = 0
 	if _use_xr():
 		_poll_xr()
 	else:
@@ -129,45 +142,57 @@ func _poll_xr() -> void:
 	_set_pointer(left_ptr, left)
 	_set_pointer(right_ptr, right)
 
-	# Right hand: fire (held), UI press, upgrade (B/Y), advance (A/X), weapon stick.
+	# Both triggers are always weapons (owner control model 2026-10-11).
 	var r_down: bool = _trigger_down(_right_trigger_down, right.get_float("trigger"), right.is_button_pressed("trigger_click"))
 	press_right = r_down and not _right_trigger_down
 	_right_trigger_down = r_down
 	fire = r_down
 
-	var r_by: bool = right.is_button_pressed("by_button")
-	upgrade = r_by and not _right_by_down
-	_right_by_down = r_by
-
-	var r_ax: bool = right.is_button_pressed("ax_button")
-	advance = r_ax and not _right_ax_down
-	_right_ax_down = r_ax
-
-	# The right stick is deliberately unbound: flicks while aiming kept switching weapons.
-
-	# Left hand: place (edge), UI press, sell (grip held), call wave (B/Y), menu, tower stick.
 	var l_down: bool = _trigger_down(_left_trigger_down, left.get_float("trigger"), left.is_button_pressed("trigger_click"))
 	press_left = l_down and not _left_trigger_down
 	_left_trigger_down = l_down
-	place = press_left
 	fire_left = l_down
 
-	var l_ax: bool = left.is_button_pressed("ax_button")
-	toggle_left = l_ax and not _left_ax_down
-	_left_ax_down = l_ax
+	# Tower placement: left X or Y, accepting click OR touch edges because the Wave runtime
+	# swallows face-button clicks on some firmware. A resting thumb costs one spurious edge.
+	var l_face_click: bool = left.is_button_pressed("ax_button") or left.is_button_pressed("by_button")
+	var l_face_touch: bool = left.is_button_pressed("ax_touch") or left.is_button_pressed("by_touch")
+	place = (l_face_click and not _left_ax_down) or (l_face_touch and not _left_face_touch_down)
+	_left_ax_down = l_face_click
+	_left_face_touch_down = l_face_touch
+
+	# Lemming tool on the right face buttons: A detonates, B deploys from the core end.
+	# Click edge fires immediately; a touch counts only as a quick TAP (press->release under
+	# 350 ms), so a thumb resting on A can never nuke the lemmings by itself.
+	var now: int = Time.get_ticks_msec()
+	var r_ax: bool = right.is_button_pressed("ax_button")
+	advance = r_ax and not _right_ax_down      # dialogue NEXT shares A; states never overlap
+	lemming_explode = r_ax and not _right_ax_down
+	_right_ax_down = r_ax
+	var r_a_touch: bool = right.is_button_pressed("ax_touch")
+	if r_a_touch and not _ra_touch_down:
+		_ra_touch_ms = now
+	elif not r_a_touch and _ra_touch_down and now - _ra_touch_ms < TAP_MS:
+		lemming_explode = true
+	_ra_touch_down = r_a_touch
+
+	var r_by: bool = right.is_button_pressed("by_button")
+	lemming_deploy = r_by and not _right_by_down
+	_right_by_down = r_by
+	var r_b_touch: bool = right.is_button_pressed("by_touch")
+	if r_b_touch and not _rb_touch_down:
+		_rb_touch_ms = now
+	elif not r_b_touch and _rb_touch_down and now - _rb_touch_ms < TAP_MS:
+		lemming_deploy = true
+	_rb_touch_down = r_b_touch
 
 	sell = left.get_float("grip") > GRIP_HELD or left.is_button_pressed("grip_click")
-
-	var l_by: bool = left.is_button_pressed("by_button")
-	call_wave = l_by and not _left_by_down
-	_left_by_down = l_by
 
 	var l_menu: bool = left.is_button_pressed("menu_button")
 	menu = l_menu and not _left_menu_down
 	_left_menu_down = l_menu
 
-	# Left stick is the selector (owner ask 2026-10-11): up/down cycles towers, left/right
-	# cycles weapons. The dominant axis wins so a diagonal flick never switches both.
+	# Left stick: X cycles the LEFT hand's weapon, Y cycles the tower. Dominant axis wins.
 	var lv: Vector2 = left.get_vector2("primary")
 	if absf(lv.x) >= absf(lv.y):
 		var wx: Vector2i = _stick_step(lv.x, _left_stick_armed)
@@ -179,6 +204,11 @@ func _poll_xr() -> void:
 		tower_step = ty.x
 		_left_stick_y_armed = ty.y == 1
 		_left_stick_armed = _left_stick_armed or absf(lv.x) < STICK_ARM
+
+	# Right stick X cycles the RIGHT hand's weapon (hands carry different weapons now).
+	var rs: Vector2i = _stick_step(right.get_vector2("primary").x, _right_stick_armed)
+	weapon_step_right = rs.x
+	_right_stick_armed = rs.y == 1
 
 	# An untracked pointer is invalid, so its press must not reach the UI either.
 	_xr_presses[0] = press_right and right_ptr.valid
