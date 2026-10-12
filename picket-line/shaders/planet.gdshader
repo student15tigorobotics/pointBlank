@@ -6,7 +6,7 @@
 // ring_mode selects the ring path on a flat PlaneMesh; the body uses a SphereMesh.
 
 shader_type spatial;
-render_mode unshaded, cull_back, depth_draw_opaque;
+render_mode unshaded, cull_back, depth_draw_opaque, fog_disabled;
 
 uniform vec4 planet_col : source_color = vec4(0.2, 0.3, 0.6, 1.0);
 uniform vec4 rim_col : source_color = vec4(0.5, 0.7, 1.0, 1.0);
@@ -35,23 +35,22 @@ void fragment() {
 		ALBEDO = ring_col.rgb * groove;
 		ALPHA = ring_col.a * edge * (0.25 + 0.75 * (1.0 - u)) * groove;
 		EMISSION = ring_col.rgb * 0.05;
-		return;
+	} else {
+		vec3 n = normalize(NORMAL);
+		vec3 v = normalize(VIEW);
+		float ndv = clamp(dot(n, v), 0.0, 1.0);
+		float rim = pow(1.0 - ndv, 2.4);
+
+		// Latitude bands drift slowly.
+		float lat = n.y * 9.0 + sin(n.x * 3.0 + TIME * band_speed) * 0.4;
+		float band = 0.5 + 0.5 * sin(lat * 2.1);
+		vec3 col = mix(planet_col.rgb * 0.7, planet_col.rgb * 1.15, band);
+
+		// Simple terminator from a fixed light, so the body is not flat.
+		float lit = clamp(dot(n, normalize(light_dir)) * 0.5 + 0.5, 0.0, 1.0);
+		col *= 0.25 + 0.75 * lit;
+
+		ALBEDO = col;
+		EMISSION = rim_col.rgb * rim * 0.9;
 	}
-
-	vec3 n = normalize(NORMAL);
-	vec3 v = normalize(VIEW);
-	float ndv = clamp(dot(n, v), 0.0, 1.0);
-	float rim = pow(1.0 - ndv, 2.4);
-
-	// Latitude bands drift slowly.
-	float lat = n.y * 9.0 + sin(n.x * 3.0 + TIME * band_speed) * 0.4;
-	float band = 0.5 + 0.5 * sin(lat * 2.1);
-	vec3 col = mix(planet_col.rgb * 0.7, planet_col.rgb * 1.15, band);
-
-	// Simple terminator from a fixed light, so the body is not flat.
-	float lit = clamp(dot(n, normalize(light_dir)) * 0.5 + 0.5, 0.0, 1.0);
-	col *= 0.25 + 0.75 * lit;
-
-	ALBEDO = col;
-	EMISSION = rim_col.rgb * rim * 0.9;
 }

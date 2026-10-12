@@ -13,6 +13,8 @@ uniform float alpha = 1.0;
 uniform float scroll_speed = 9.0;
 uniform float streak_density = 14.0;
 uniform float core_sharpness = 2.2;
+// HDR multiplier on the colour so bloom picks the beam up (the colour itself stays in 0..1).
+uniform float intensity = 1.0;
 
 float hash1(float n) {
 	return fract(sin(n) * 43758.5453);
@@ -32,6 +34,6 @@ void fragment() {
 	float streak2 = streak_noise(UV.x * streak_density * 2.7 - TIME * scroll_speed * 1.6 + 5.0);
 	float body = 0.65 + 0.35 * (0.6 * streak + 0.4 * streak2);
 	float end_fade = smoothstep(0.0, 0.04, UV.x) * smoothstep(1.0, 0.96, UV.x);
-	ALBEDO = beam_col.rgb;
+	ALBEDO = beam_col.rgb * intensity;
 	ALPHA = clamp(alpha * core * body * end_fade, 0.0, 1.0);
 }

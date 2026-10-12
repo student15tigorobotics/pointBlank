@@ -48,6 +48,13 @@ The core rules are engine-free and tested headless:
 godot --headless --path picket-line -s res://tests/core_tests.gd
 ```
 
+A headless smoke run drives the real scene: a run starts, a scripted pilot flies sectors with the world, HUD and
+menus live, and the pause, options, upgrade and debrief screens are exercised.
+
+```
+godot --headless --path picket-line -s res://tests/smoke_test.gd
+```
+
 ## Layout
 
 ```

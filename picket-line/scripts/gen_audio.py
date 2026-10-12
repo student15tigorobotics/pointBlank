@@ -324,7 +324,7 @@ def make_hat(name, tau=0.03, length=0.12, fc=7000.0, level=1.0):
     rng = rng_for(name)
     n = _n(length)
     t = _t(n)
-    x = hp1(rng.standard_normal(n), fc) * np.exp(-t / tau)
+    x = lp1(hp1(rng.standard_normal(n), fc), 12000.0) * np.exp(-t / tau)
     return _fade(x * level, 0.0005, 0.01)
 
 
@@ -332,7 +332,7 @@ def make_crash():
     rng = rng_for("crash")
     n = _n(1.6)
     t = _t(n)
-    x = hp1(rng.standard_normal(n), 2800.0) * np.exp(-t / 0.55) * 0.8
+    x = lp1(hp1(rng.standard_normal(n), 2800.0), 12000.0) * np.exp(-t / 0.55) * 0.8
     for ratio, amp in ((1.0, 1.0), (1.59, 0.5), (2.14, 0.35), (2.92, 0.25)):
         x += 0.12 * amp * np.sin(TWO_PI * 430.0 * ratio * t) * np.exp(-t / 0.4)
     return _fade(x, 0.001, 0.05)
@@ -464,7 +464,7 @@ def loop_echo(x, D, fb):
     return out[P:]
 
 
-def master(x, target_db=-16.0, ceiling=0.75):
+def master(x, target_db=-16.0, ceiling=0.65):
     """Remove DC, soft-clip with tanh under a ceiling, and set the RMS to target_db."""
     x = x - x.mean(axis=0, keepdims=True)
     target = 10.0 ** (target_db / 20.0)

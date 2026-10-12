@@ -1,7 +1,7 @@
 # Copyright (C) 2026 tigo.robotics@gmail.com
 # This file is part of Picket Line.
 # Picket Line is free software under GPL-3.0-or-later. See LICENSE in the repository root.
-class_name Sky
+## NOTE: no class_name. "Sky" is a native Godot class (Sky resource), so World preloads this script instead.
 extends Node3D
 ## Star dome with nebula (shaders/sky.gdshader), a rim-lit planet with an optional ring (shaders/planet.gdshader)
 ## and an additive sun glare. Centred on the camera every frame so it reads as infinitely far away.
