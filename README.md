@@ -114,10 +114,10 @@ that file holds only its header.
 
 The battle spawn cap is set from the saved result at the next battle. Re-run the benchmark after changing graphics tiers.
 
-To run the desktop preview instead:
+To run the desktop preview (every non-Android run uses it):
 
 ```
-godot --path godot -- --desktop
+godot --path godot -- --game=swarm
 ```
 
 ### Controls (VIVE XR Elite)

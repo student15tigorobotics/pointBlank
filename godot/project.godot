@@ -9,7 +9,8 @@ config_version=5
 
 [application]
 
-config/name="PointBlank Arcade"
+; The name stays "PointBlank Swarm" on purpose: it sets the desktop user:// folder, which holds the VR game's profile and voice.
+config/name="PointBlank Swarm"
 config/icon="res://icon.png"
 config/version="0.1.0"
 run/main_scene="res://launcher/launcher.tscn"

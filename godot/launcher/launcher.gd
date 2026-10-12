@@ -10,6 +10,7 @@ extends Node
 ## Command-line options (after --):
 ##   --game=<id>   start that game without the menu (ids are in GAMES)
 ##   --smoke       start the VR game in its headless self-test mode
+##   --shots       start the VR game in its screenshot tour
 
 const GAMES := [
 	{
@@ -43,7 +44,7 @@ func _ready() -> void:
 				_start(entry)
 				return
 			push_error("Game not available on this platform: %s" % arg)
-	if args.has("--smoke"):
+	if args.has("--smoke") or args.has("--shots"):
 		_start(_find("swarm"))
 		return
 	if available.is_empty():

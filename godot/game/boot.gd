@@ -13,7 +13,7 @@ extends Node3D
 ## App shell: world and XR setup, the per-frame loop, and the flow between hub, story, battle and results.
 ## Port of Game/Boot.cs (main scene script, scenes/main.tscn).
 ## Run with --smoke for a headless self-test. Smoke never reads or writes the save file.
-## Run with --desktop to force the desktop preview.
+## Every non-Android run is the desktop preview (there is no PC VR path). --desktop is accepted for compatibility.
 
 const STOP_ABORTED: int = 3                 # benchmark stop code: aborted by the menu
 const BATTLE_CAP_MIN: int = 800
@@ -76,7 +76,7 @@ func _ready() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	smoke_mode = args.has("--smoke")
 	shots_mode = args.has("--shots")
-	var desktop: bool = smoke_mode or shots_mode or args.has("--desktop")
+	var desktop: bool = smoke_mode or shots_mode or args.has("--desktop") or not OS.has_feature("android")
 	_themes = StageCatalog.themes()
 	_stages = StageCatalog.all()
 

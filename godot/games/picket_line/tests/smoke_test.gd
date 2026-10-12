@@ -4,7 +4,7 @@
 extends SceneTree
 ## Headless smoke run of the real scene. Starts a run, flies a scripted pilot through sectors with the
 ## real world, HUD and menus, and exercises pause, options, upgrades and debrief.
-## Run: godot --headless --path picket-line -s res://games/picket_line/tests/smoke_test.gd
+## Run: godot --headless --path godot -s res://games/picket_line/tests/smoke_test.gd
 ## A script error printed by Godot counts as a failure, as does not reaching the debrief in the frame budget.
 
 const MainScript := preload("res://games/picket_line/game/main.gd")
@@ -50,6 +50,10 @@ var _pause_done := false
 
 
 func _init() -> void:
+	# Headless frames run as fast as the machine allows, so the real frame delta drives the sim clock.
+	# A fixed rate keeps a sector's length in frames predictable, and time scale 4 keeps a full run to a few minutes.
+	Engine.max_fps = 60
+	Engine.time_scale = 4.0
 	var main: Node = load("res://games/picket_line/scenes/main.tscn").instantiate()
 	root.add_child(main)
 	_main = main

@@ -3,7 +3,7 @@
 # Picket Line is free software under GPL-3.0-or-later. See LICENSE in the repository root.
 extends SceneTree
 ## Headless core checks. Run from the repository root:
-##   godot --headless --path picket-line -s res://games/picket_line/tests/core_tests.gd
+##   godot --headless --path godot -s res://games/picket_line/tests/core_tests.gd
 
 const DT := 1.0 / 60.0
 

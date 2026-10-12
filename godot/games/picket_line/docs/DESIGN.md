@@ -13,22 +13,22 @@ lance charge, weak core timing, focus time-slow, SNAP reaction bonus) both score
 
 ## Coordinates
 
-Metres, seconds, radians. Station at the origin, looking down -Z, Y up. `Balance.aim_dir(yaw, pitch)` gives the forward
-vector; `Balance.aim_yaw_pitch(v)` is its inverse. The rail moves the muzzle in X (+-8 m) and Y (+-2.5 m).
+Metres, seconds, radians. Station at the origin, looking down -Z, Y up. `PLBalance.aim_dir(yaw, pitch)` gives the forward
+vector; `PLBalance.aim_yaw_pitch(v)` is its inverse. The rail moves the muzzle in X (+-8 m) and Y (+-2.5 m).
 
 ## Core (engine-free, `core/`, tested by `tests/core_tests.gd`)
 
 | File | Role |
 |---|---|
 | `rng.gd` (Rng) | xorshift64. `next()`, `range_f`, `range_i` (inclusive), `chance`, `pick`. |
-| `balance.gd` (Balance) | All tuning. `ENEMY_DEFS`, `WEAPON_DEFS`, `DIFFICULTY`, `aim_dir`, `aim_yaw_pitch`. |
+| `balance.gd` (PLBalance) | All tuning. `ENEMY_DEFS`, `WEAPON_DEFS`, `DIFFICULTY`, `aim_dir`, `aim_yaw_pitch`. |
 | `enemy.gd` (Enemy) | Plain data for one alien. |
 | `enemy_ai.gd` (EnemyAI) | `step(e, dt, ctx, rng, out)`. ctx: `rail` (aim point), `fire_mult`. Appends events. |
 | `station.gd` (Station) | Hull, shield, energy, heat, focus, rail, aim, dodge, `take_damage`. Real-time timers. |
 | `weapons.gd` (Weapons) | Cooldowns, heat, energy, lance charge, swarm pods and lock cone. `try_fire(dt, cmd, station, muzzle, dir, projectiles, enemies, rng)`. |
-| `projectiles.gd` (Projectiles) | Swept player shots (weak core first), flak detonation and falloff, enemy shells. `step(dt, enemies, station)`. |
+| `projectiles.gd` (PLProjectiles) | Swept player shots (weak core first), flak detonation and falloff, enemy shells. `step(dt, enemies, station)`. |
 | `sectors.gd` (Sectors) | Six sector themes and deterministic spawn schedules. |
-| `scoring.gd` (Scoring) | Combo multiplier (1 + chain/3, max 8), kill points (weak x1.5, SNAP +50), sector bonus. |
+| `scoring.gd` (PLScoring) | Combo multiplier (1 + chain/3, max 8), kill points (weak x1.5, SNAP +50), sector bonus. |
 | `upgrades.gd` (Upgrades) | Nine cards. `mods_for(ids)`, `with_defaults`, `offer(rng, owned, n)`. |
 | `sim.gd` (Sim) | One sector. `step(dt, cmd) -> Array` of events, plus read-only state. |
 | `run.gd` (Run) | Six sectors, upgrades, totals and the end of the run. |
