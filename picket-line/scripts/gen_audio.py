@@ -464,7 +464,7 @@ def loop_echo(x, D, fb):
     return out[P:]
 
 
-def master(x, target_db=-16.0, ceiling=0.85):
+def master(x, target_db=-16.0, ceiling=0.75):
     """Remove DC, soft-clip with tanh under a ceiling, and set the RMS to target_db."""
     x = x - x.mean(axis=0, keepdims=True)
     target = 10.0 ** (target_db / 20.0)
@@ -533,7 +533,7 @@ def build_menu(kit):
     noise = lb.rng.standard_normal((lb.L, 2))
     lb.groups["wind"] = loop_filter(noise, 380.0 + 200.0 * np.sin(cycle)) * 0.2
     return finish_track(
-        lb, {"pad": 0.8, "sub": 0.8, "bell": 0.7, "wind": 1.0},
+        lb, {"pad": 0.8, "sub": 0.8, "bell": 0.7, "wind": 3.0},
         verb=["pad", "bell", "wind"], room=0.93, verb_wet=0.5,
         echo=["bell"], echo_samples=int(0.75 * lb.beat_s * SR), echo_fb=0.35, echo_wet=0.25)
 
@@ -576,7 +576,7 @@ def build_calm(kit):
     lb.groups["pad"] = loop_filter(lb.buf("pad"), pad_fc)
     lb.groups["bass"] = loop_filter(lb.buf("bass"), 450.0)
     return finish_track(
-        lb, {"pad": 0.6, "arp": 0.9, "bass": 0.7, "drums": 0.9},
+        lb, {"pad": 0.6, "arp": 3.2, "bass": 0.7, "drums": 1.3},
         verb=["pad", "arp"], room=0.85, verb_wet=0.25,
         echo=["arp"], echo_samples=int(0.75 * lb.beat_s * SR), echo_fb=0.35, echo_wet=0.18)
 
@@ -594,10 +594,10 @@ def build_combat(kit):
             phrase_bar = bar % 8
             for q in range(4):
                 lb.at("drums", b + q, kit["kick"], 1.0)
-            lb.at("drums", b + 1.0, kit["snare"], 0.85)
-            lb.at("drums", b + 3.0, kit["snare"], 0.85)
+            lb.at("drums", b + 1.0, kit["snare"], 1.4)
+            lb.at("drums", b + 3.0, kit["snare"], 1.4)
             for i in range(8):
-                lb.at("drums", b + 0.5 * i, kit["hat"], 0.42 if i % 2 else 0.3, pan=0.25 if i % 2 else -0.25)
+                lb.at("drums", b + 0.5 * i, kit["hat"], 0.85 if i % 2 else 0.6, pan=0.25 if i % 2 else -0.25)
             if phrase_bar in (6, 7):
                 for i in range(8):
                     lb.at("drums", b + 0.5 * i + 0.25, kit["hat_soft"], 0.2, pan=0.1)
@@ -630,7 +630,7 @@ def build_combat(kit):
     lead_fc = 350.0 * (5200.0 / 350.0) ** (np.mod(bars_f, 8.0) / 8.0)
     lb.groups["lead"] = loop_filter(lb.buf("lead"), lead_fc)
     return finish_track(
-        lb, {"drums": 1.0, "bass": 0.9, "lead": 0.5, "fx": 0.6},
+        lb, {"drums": 1.0, "bass": 0.9, "lead": 8.0, "fx": 2.5},
         verb=["lead", "fx"], room=0.8, verb_wet=0.2,
         echo=["lead"], echo_samples=int(0.75 * lb.beat_s * SR), echo_fb=0.3, echo_wet=0.15)
 
@@ -671,7 +671,7 @@ def build_boss(kit):
     siren_fc = 170.0 * (2600.0 / 170.0) ** tri
     lb.groups["siren"] = loop_filter(lb.buf("siren"), siren_fc)
     return finish_track(
-        lb, {"choir": 0.8, "brass": 0.7, "bass": 0.9, "drums": 1.0, "siren": 0.9},
+        lb, {"choir": 0.8, "brass": 2.8, "bass": 0.9, "drums": 1.0, "siren": 2.3},
         verb=["choir", "brass", "siren"], room=0.92, verb_wet=0.45)
 
 
@@ -713,7 +713,7 @@ def build_victory(kit):
     lb.at("drums", 0.0, kit["crash"], 0.5)
     lb.at("drums", 16.0, kit["crash"], 0.4)
     return finish_track(
-        lb, {"pad": 0.7, "brass": 0.6, "lead": 0.5, "drums": 0.9},
+        lb, {"pad": 0.7, "brass": 1.0, "lead": 1.5, "drums": 0.9},
         verb=["pad", "brass", "lead"], room=0.85, verb_wet=0.35,
         echo=["lead"], echo_samples=int(0.75 * lb.beat_s * SR), echo_fb=0.3, echo_wet=0.15)
 
@@ -1025,7 +1025,7 @@ def s_snap(rng):
 
 
 def s_combo_up(rng):
-    x = _glide(600.0, 1250.0, 0.16, harm=(1.0, 0.25))
+    x = _glide(600.0, 1250.0, 0.18, harm=(1.0, 0.25))
     t = _t(x.shape[0])
     return x * np.exp(-t / 0.08)
 
@@ -1064,9 +1064,10 @@ def s_shield_hit(rng):
     n = _n(0.35)
     t = _t(n)
     buzz = osc(100.0, t, "square", 1.0)
-    impulses = (rng.random(n) < 0.01) * rng.standard_normal(n)
-    crackle = lp1(impulses, 6000.0) * 60.0
-    return (0.5 * buzz + 1.2 * crackle) * np.exp(-t / 0.12)
+    impulses = (rng.random(n) < 0.02) * rng.standard_normal(n)
+    crackle = lp1(impulses, 6000.0)
+    crackle = crackle / (float(np.max(np.abs(crackle))) + 1e-12)
+    return (0.5 * buzz + 0.7 * crackle) * np.exp(-t / 0.12)
 
 
 def s_hull_hit(rng):
