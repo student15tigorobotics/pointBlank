@@ -165,7 +165,7 @@ func _fire_vortex(t: TowerInstance, swarm: Swarm, economy: BattleEconomy, shots:
 	_collect(swarm, t.x, t.z, _range[k], grid)
 	var chip: float = 4.0 * damage_mult * pow(Balance.TOWER_UPGRADE_DAMAGE, float(t.level - 1))
 	for i in _scratch:
-		Combat.hit(swarm, i, chip, economy)
+		Combat.hit_area(swarm, i, chip, economy)
 
 
 # Turret: nearest enemy in range, one bolt.
@@ -213,7 +213,7 @@ func _fire_shell(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEcon
 		var dx: float = swarm.x[i] - tx
 		var dz: float = swarm.z[i] - tz
 		var falloff: float = 1.0 - 0.5 * sqrt(dx * dx + dz * dz) / splash
-		Combat.hit(swarm, i, dmg * falloff, economy)
+		Combat.hit_area(swarm, i, dmg * falloff, economy)
 
 
 # Tesla: chain of up to Chain+1 hits. Each link decays by 0.85 and never re-hits an enemy.
@@ -252,18 +252,19 @@ func _fire_pulse(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEcon
 	var slow_secs: float = _slow_seconds[k]
 	for i in _scratch:
 		swarm.slow(i, slow_mul, slow_secs)
-		Combat.hit(swarm, i, dmg, economy)
+		Combat.hit_area(swarm, i, dmg, economy)
 
 
 ## Fills _scratch with alive enemy indices within radius, ascending (same order as C# Combat.Collect).
 ## With a grid the result is sorted so hit order matches the brute-force path.
 ## PackedArrays are passed by value, so the array returned by collect() must be assigned back.
 func _collect(swarm: Swarm, x: float, z: float, radius: float, grid: SpatialGrid) -> void:
+	_scratch.clear()
 	if grid != null:
-		_scratch = grid.collect(x, z, radius, PackedInt32Array())
+		_scratch = grid.collect(x, z, radius, _scratch)
 		_scratch.sort()
 	else:
-		_scratch = Combat.collect(swarm, x, z, radius, PackedInt32Array())
+		_scratch = Combat.collect(swarm, x, z, radius, _scratch)
 
 
 func _nearest(swarm: Swarm, x: float, z: float, reach: float, grid: SpatialGrid) -> int:

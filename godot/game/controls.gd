@@ -31,27 +31,27 @@ var right_ptr: Pointer = Pointer.new()
 var mouse_ptr: Pointer = Pointer.new()
 
 # Held intents
-var fire: bool = false          # right trigger held (XR) / left mouse held (desktop)
-var fire_left: bool = false     # left trigger held (XR; both hands are always weapons)
+var fire: bool = false          # right trigger held (XR) / left mouse held (desktop): the aim hand's weapon
+var fire_left: bool = false     # left trigger held (XR only; desktop has no left-hand weapon)
 var sell: bool = false          # left grip held (XR) / shift held (desktop)
 
-# Lemming tool (right A/B, click edge or touch-tap) and selectors.
+# Lemming tool (right A/B: click edge, or a quick touch tap) and the aim hand's weapon cycle.
 var lemming_explode: bool = false   # right A: detonate every deployed lemming
 var lemming_deploy: bool = false    # right B: release a squad from the core end
-var weapon_step_right: int = 0      # right stick X: right-hand weapon cycle
+var weapon_step_right: int = 0      # right stick X (XR) / F, R (desktop): the aim hand's weapon, the one the mouse fires
 
 # Edge intents, true for the one frame they occur
 var press_right: bool = false   # right trigger edge, UI press for the right pointer
 var press_left: bool = false    # left trigger edge, UI press for the left pointer
 var press_mouse: bool = false   # desktop left mouse edge, UI press for the mouse pointer
-var place: bool = false         # left trigger edge (XR) / middle mouse edge (desktop)
-var upgrade: bool = false       # right B/Y edge (XR) / right mouse edge (desktop)
-var call_wave: bool = false     # left B/Y edge (XR) / G (desktop)
-var advance: bool = false       # right A/X edge (XR) / Space or Enter (desktop)
+var place: bool = false         # left X click or touch edge (XR) / middle mouse edge (desktop)
+var upgrade: bool = false       # left Y click or touch edge (XR) / right mouse edge (desktop)
+var call_wave: bool = false     # G (desktop). Never set in XR: left Y is the upgrade button, and XR calls a wave from the HUD CALL WAVE button
+var advance: bool = false       # right A edge (XR) / Space or Enter (desktop)
 var menu: bool = false          # left menu edge (XR) / Escape (desktop)
 
-var tower_step: int = 0         # -1, 0 or 1 (left stick X / Q, E)
-var weapon_step: int = 0        # -1, 0 or 1 (right stick X / R, F)
+var tower_step: int = 0         # -1, 0 or 1: left stick Y (XR) / Q, E (desktop)
+var weapon_step: int = 0        # -1, 0 or 1: left stick X, the left hand's weapon (XR only)
 
 # Per-hand state
 var _right_trigger_down: bool = false
@@ -263,13 +263,14 @@ func _poll_desktop(viewport: Viewport) -> void:
 		tower_step = -1
 	_q_down = q
 
+	# F and R cycle the weapon the mouse fires: the aim hand's weapon (weapon_step_right), the same index the right stick moves in XR.
 	var f: bool = Input.is_key_pressed(KEY_F)
 	if f and not _f_down:
-		weapon_step = 1
+		weapon_step_right = 1
 	_f_down = f
 	var r: bool = Input.is_key_pressed(KEY_R)
 	if r and not _r_down:
-		weapon_step = -1
+		weapon_step_right = -1
 	_r_down = r
 
 	_desk_presses[0] = press_mouse

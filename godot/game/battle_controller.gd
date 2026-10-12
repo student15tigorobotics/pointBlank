@@ -102,6 +102,15 @@ var _muzzle_ptr: Array = [Pointer.new(), Pointer.new()]   # fire-origin scratch 
 var _charge: PackedFloat32Array = PackedFloat32Array([0.0, 0.0])  # boulder wind-up per hand
 var _was_fire: Array = [false, false]
 var _saber_sfx_cd: float = 0.0
+# Weapon stats the hot path reads every frame, copied once from Balance.weapon() in _init (that accessor builds a new
+# Dictionary on each call, so it must not run per frame or per shot).
+var _boulder_range: float = 0.0
+var _boulder_damage: float = 0.0
+var _boulder_cooldown: float = 0.0
+var _saber_range: float = 0.0
+var _saber_damage: float = 0.0
+var _saber_radius: float = 0.0
+var _saber_samples: PackedFloat32Array = PackedFloat32Array([0.2, 0.5, 0.8])   # blade sample points along a slash
 
 const MUZZLE_LEN: float = 0.21            # gun length: bolts leave from the muzzle tip
 const CHARGE_MAX: float = 1.2             # seconds to a full boulder wind-up
@@ -125,6 +134,14 @@ func _init(view_ref: BattleView, profile_ref: Profile, mods: BattleModifiers, be
 	_cluster_y.resize(CLUSTERS_MAX)
 	_cluster_z.resize(CLUSTERS_MAX)
 	_cluster_count.resize(CLUSTERS_MAX)
+	var boulder: Dictionary = Balance.weapon(Balance.WeaponKind.BOULDER)
+	_boulder_range = float(boulder["range"])
+	_boulder_damage = float(boulder["damage"])
+	_boulder_cooldown = float(boulder["cooldown"])
+	var saber: Dictionary = Balance.weapon(Balance.WeaponKind.SABER)
+	_saber_range = float(saber["range"])
+	_saber_damage = float(saber["damage"])
+	_saber_radius = float(saber["radius"])
 	towers.damage_mult = mods.tower_damage_mult
 	weapons.damage_mult = mods.weapon_damage_mult
 	weapons.cooldown_mult = mods.weapon_cooldown_mult
@@ -193,6 +210,8 @@ func tower_choice() -> int:
 
 
 ## One frame. eye and forward are world-space head pose values.
+## ui_over is the AIM pointer's hover over a HUD control, decided by Boot. It is the only hover this file reads: it gates
+## fire for both hands and the build clicks. The other hand's hover is never read here, so it cannot block that hand's fire.
 func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: Vector3) -> void:
 	if outcome != Outcome.RUNNING:
 		return
@@ -303,7 +322,9 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 				_cluster_z[best] = 0.0
 				_cluster_count[best] = 0
 			elif best < 0:
-				best = 0
+				# At the cap with no cluster within CLUSTER_R: this death gets no blast of its own. Only the visual is
+				# dropped; the kill and its damage are booked by the swarm and the economy, not by this blast pass.
+				continue
 			_cluster_x[best] += ex
 			_cluster_y[best] += ey
 			_cluster_z[best] += ez
@@ -391,7 +412,6 @@ func _fire_hand(hand: int, ptr: Pointer, held: bool, ws: WeaponSystem, dt: float
 		return
 
 	if kind == Balance.WeaponKind.BOULDER:
-		var stats: Dictionary = Balance.weapon(kind)
 		if held and not ui_over and ws.ready():
 			_charge[hand] = minf(_charge[hand] + dt, CHARGE_MAX)
 		elif was and not (held and not ui_over) and _charge[hand] > 0.05 and ws.ready():
@@ -399,9 +419,9 @@ func _fire_hand(hand: int, ptr: Pointer, held: bool, ws: WeaponSystem, dt: float
 			var t: float = _charge[hand] / CHARGE_MAX
 			var vel: Vector3 = d * lerpf(1.6, 4.4, t)
 			vel.y += lerpf(0.5, 1.1, t)
-			projectiles.fire_ball(o, vel, float(stats["range"]) * lerpf(0.35, 1.0, t),
-				float(stats["damage"]) * ws.damage_mult)
-			ws.cooldown = float(stats["cooldown"]) * ws.cooldown_mult
+			projectiles.fire_ball(o, vel, _boulder_range * lerpf(0.35, 1.0, t),
+				_boulder_damage * ws.damage_mult)
+			ws.cooldown = _boulder_cooldown * ws.cooldown_mult
 			_charge[hand] = 0.0
 			Audio.play("shot.rail", -3.0, 0.1)
 		if not held:
@@ -445,14 +465,13 @@ func _nearest_path_dist(xz: Vector2) -> float:
 
 ## Continuous plasma-saber damage: enemies near the blade line melt at damage-per-second.
 func _saber_slash(o: Vector3, d: Vector3, ws: WeaponSystem, dt: float) -> void:
-	var stats: Dictionary = Balance.weapon(Balance.WeaponKind.SABER)
-	var blade: float = float(stats["range"])
-	var dps: float = float(stats["damage"]) * ws.damage_mult
-	var reach: float = float(stats["radius"]) + 0.05
+	var blade: float = _saber_range
+	var dps: float = _saber_damage * ws.damage_mult
+	var reach: float = _saber_radius + 0.05
 	_saber_sfx_cd -= dt
 	var touched: bool = false
-	for s in [0.2, 0.5, 0.8]:
-		var p: Vector3 = o + d * (blade * float(s))
+	for si in _saber_samples.size():
+		var p: Vector3 = o + d * (blade * _saber_samples[si])
 		_impacts_scratch.clear()
 		_impacts_scratch = grid.collect(p.x, p.z, reach, _impacts_scratch)
 		for k in _impacts_scratch.size():

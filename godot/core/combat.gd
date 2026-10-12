@@ -41,6 +41,12 @@ static func hit(swarm: Swarm, i: int, damage: float, economy: BattleEconomy) -> 
 	return true
 
 
+## Area damage (splash, pulse, line, burst). A merged crowd is many bodies inside the area, so
+## it takes the damage once per member. Single-target paths keep hit().
+static func hit_area(swarm: Swarm, i: int, damage: float, economy: BattleEconomy) -> bool:
+	return hit(swarm, i, damage * float(maxi(1, swarm.clump_count[i])), economy)
+
+
 ## Nearest alive enemy to (x, z) within reach, XZ distance. Brute force over high_water.
 ## Returns -1 if none. Ties go to the higher slot index (later iteration wins, as in C#).
 static func nearest_in_range(swarm: Swarm, x: float, z: float, reach: float) -> int:

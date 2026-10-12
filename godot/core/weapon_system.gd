@@ -65,7 +65,9 @@ func tick(dt: float) -> void:
 ## your target); rail, arc and nova stay instantaneous. proj may be null (old callers/tests),
 ## which falls back to the original hitscan behaviour.
 func try_fire(kind: int, origin: Vector3, dir: Vector3, swarm: Swarm, economy: BattleEconomy, shots: ShotBuffer, proj: Projectiles = null) -> int:
-	if not ready():
+	# Kinds without a branch here (saber, boulder, squad, anything out of range) return 0 before the
+	# cooldown starts, so they never fire the nova.
+	if not ready() or not _has_branch(kind):
 		return 0
 	cooldown = _w_cooldown[kind] * cooldown_mult
 	var dmg: float = _w_damage[kind] * damage_mult
@@ -79,7 +81,14 @@ func try_fire(kind: int, origin: Vector3, dir: Vector3, swarm: Swarm, economy: B
 		return _fire_rail(kind, origin, d, dmg, swarm, economy, shots)
 	if kind == Balance.WeaponKind.ARC:
 		return _fire_arc(kind, origin, d, dmg, swarm, economy, shots)
-	return _fire_nova(kind, origin, d, dmg, swarm, economy, shots)
+	if kind == Balance.WeaponKind.NOVA:
+		return _fire_nova(kind, origin, d, dmg, swarm, economy, shots)
+	return 0
+
+
+## True for the kinds try_fire has a branch for. Anything else is refused.
+static func _has_branch(kind: int) -> bool:
+	return kind == Balance.WeaponKind.BLASTER or kind == Balance.WeaponKind.SCATTER or kind == Balance.WeaponKind.RAIL or kind == Balance.WeaponKind.ARC or kind == Balance.WeaponKind.NOVA
 
 
 const BOLT_SPEED: float = 5.0     # m/s across the table; fast but visibly in flight
@@ -162,7 +171,8 @@ func _fire_rail(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, eco
 		var perp: float = (p - (o + d * t)).length()
 		if t > reach or perp > radius:
 			continue
-		Combat.hit(swarm, i, dmg, economy)
+		# Per member: a merged crowd takes the line's damage on each body it holds.
+		Combat.hit_area(swarm, i, dmg, economy)
 		hits += 1
 	return hits
 
@@ -214,7 +224,8 @@ func _fire_nova(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, eco
 		var dx: float = swarm.x[i] - impact.x
 		var dz: float = swarm.z[i] - impact.z
 		var falloff: float = 1.0 - 0.5 * sqrt(dx * dx + dz * dz) / radius
-		Combat.hit(swarm, i, dmg * falloff, economy)
+		# Per member, as for the rail: a merged crowd takes the splash on each body it holds.
+		Combat.hit_area(swarm, i, dmg * falloff, economy)
 	return count
 
 

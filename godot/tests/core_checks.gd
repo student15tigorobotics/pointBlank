@@ -33,6 +33,7 @@ func _init() -> void:
 	_test_battle_path()
 	_test_combat_and_economy()
 	_test_swarm_and_waves()
+	_test_merged_crowds()
 	_test_weapons()
 	_test_towers()
 	_test_profile()
@@ -58,7 +59,7 @@ func _sample(bp: BattlePath, d: float) -> Array:
 func _test_stage_catalog() -> void:
 	print("Stage catalog")
 	var stages: Array = StageCatalog.all()
-	_check(StageCatalog.count() == 6, "six chapters")
+	_check(StageCatalog.count() == 12, "twelve chapters")
 	for st in stages:
 		var index_text: String = str(st["index"])
 		var xz: PackedFloat32Array = st["path"]
@@ -68,7 +69,15 @@ func _test_stage_catalog() -> void:
 			if absf(v) > Balance.FIELD_HALF:
 				inside = false
 		_check(inside, "stage " + index_text + " path stays inside the battlefield")
-		_check(bpath.length > 6.0 and bpath.length < 16.0, "stage " + index_text + " path length " + ("%.1f" % bpath.length) + " m")
+		# Stage 11 (index 11, the twelfth chapter) is the shortest route at 5.9 m, so the floor is 5 m.
+		# Its length must also equal the polyline through the waypoints in stages.gd.
+		var polyline: float = 0.0
+		for k in range((xz.size() >> 1) - 1):
+			var ddx: float = xz[k * 2 + 2] - xz[k * 2]
+			var ddz: float = xz[k * 2 + 3] - xz[k * 2 + 1]
+			polyline += sqrt(ddx * ddx + ddz * ddz)
+		_check(bpath.length > 5.0 and bpath.length < 16.0, "stage " + index_text + " path length " + ("%.1f" % bpath.length) + " m")
+		_check(absf(bpath.length - polyline) < EPS, "stage " + index_text + " path length matches its waypoints")
 		_check(st["waves"].size() == StageCatalog.WAVES_PER_STAGE, "stage " + index_text + " has " + str(StageCatalog.WAVES_PER_STAGE) + " waves")
 	var last_wave_total := 0
 	for w in stages[5]["waves"]:
@@ -101,6 +110,21 @@ func _test_combat_and_economy() -> void:
 	_check(eco.credits == 2 and eco.overkill_credits == 1, "drone kill pays reward plus overkill (ratio 0.25)")
 	eco.on_leak(Balance.EnemyKind.BRUTE)
 	_check(eco.core_hp == Balance.BASE_CORE_HP - 5, "brute leak costs 5 core hp")
+	var group_eco := BattleEconomy.new(BattleModifiers.defaults())
+	group_eco.on_leak_group(5, 3)
+	_check(group_eco.core_hp == Balance.BASE_CORE_HP - 5 and group_eco.leaks == 3, "a leaking crowd counts every member and takes its summed core damage once")
+	group_eco.on_leak_group(100, 2)
+	_check(group_eco.core_hp == 0 and group_eco.leaks == 5, "crowd leak clamps core hp at zero")
+	var area_swarm := Swarm.new(BattlePath.new(StageCatalog.all()[0]["path"]), 10)
+	var area_eco := BattleEconomy.new(BattleModifiers.defaults())
+	var lone: int = area_swarm.spawn(Balance.EnemyKind.BRUTE, 1.0, 0.5)
+	var crowd_slot: int = area_swarm.spawn(Balance.EnemyKind.BRUTE, 1.0, 0.5)
+	area_swarm.clump_count[crowd_slot] = 3
+	area_swarm.set_hp(lone, 100.0)
+	area_swarm.set_hp(crowd_slot, 100.0)
+	Combat.hit_area(area_swarm, lone, 4.0, area_eco)
+	Combat.hit_area(area_swarm, crowd_slot, 4.0, area_eco)
+	_check(absf(area_swarm.hp[lone] - 96.0) < EPS and absf(area_swarm.hp[crowd_slot] - 88.0) < EPS, "area hit on a clump of 3 deals 3x damage (single body 1x)")
 	_check(BattleEconomy.early_call_bonus(25.0, 1.0) == 250, "early call bonus is 10 credits per second remaining")
 	_check(BattleEconomy.stars(0.85, true) == 3 and BattleEconomy.stars(0.5, true) == 2 and BattleEconomy.stars(0.1, true) == 1 and BattleEconomy.stars(1.0, false) == 0, "star thresholds")
 	var mods_start := BattleModifiers.defaults()
@@ -182,6 +206,28 @@ func _test_swarm_and_waves() -> void:
 	_check(limited_spawns.size() == mini(3, room_total), "room caps the spawns emitted in one frame")
 
 
+func _test_merged_crowds() -> void:
+	print("Merged crowds")
+	var crowd_path := BattlePath.new(StageCatalog.all()[0]["path"])
+	var crowd_mods := BattleModifiers.defaults()
+	crowd_mods.core_max_hp = 100   # room for the full 49 so the leak total is visible, not clamped
+	var crowd_eco := BattleEconomy.new(crowd_mods)
+	var crowd := Swarm.new(crowd_path, 40)
+	var titan: int = crowd.spawn(Balance.EnemyKind.TITAN, 1.0, 0.5)
+	for _d in 29:
+		crowd.spawn(Balance.EnemyKind.DRONE, 1.0, 0.5)
+	# All 30 bodies share one spot, so they fall in one merge cell. The titan is furthest along and survives.
+	for i in crowd.high_water:
+		crowd.x[i] = 0.0
+		crowd.z[i] = 0.0
+	crowd.dist[titan] = 0.5
+	crowd.merge_crowds()
+	_check(crowd.alive_count == 1 and crowd.clump_count[titan] == 30 and crowd.kind[titan] == Balance.EnemyKind.TITAN, "merged crowd keeps the titan as survivor and counts 30 bodies")
+	crowd.dist[titan] = crowd_path.length
+	crowd.step(1.0 / 72.0, crowd_eco)
+	_check(crowd_eco.leaks == 30 and crowd_eco.core_hp == 100 - 49 and crowd.alive_count == 0, "merged titan crowd leaks 49 core damage in total and counts 30 leaks")
+
+
 func _test_weapons() -> void:
 	print("Weapons")
 	var stage: Dictionary = StageCatalog.all()[0]
@@ -192,7 +238,7 @@ func _test_weapons() -> void:
 	s3.y[ahead] = 0.05
 	s3.z[ahead] = 1.0
 	var weapons := WeaponSystem.new()
-	var shots: Array = []
+	var shots: ShotBuffer = ShotBuffer.new()
 	var hits: int = weapons.try_fire(Balance.WeaponKind.BLASTER, Vector3(0.0, 0.05, 0.0), Vector3(0.0, 0.0, 1.0), s3, eco4, shots)
 	var brute_hp: float = Balance.enemy(Balance.EnemyKind.BRUTE)["hp"]
 	_check(hits == 1 and s3.hp[ahead] < brute_hp, "blaster hits enemy on the aim axis")
@@ -217,7 +263,7 @@ func _test_weapons() -> void:
 	rail_swarm.x[in_front] = 0.0
 	rail_swarm.y[in_front] = 0.0
 	rail_swarm.z[in_front] = 0.5
-	var rail_shots: Array = []
+	var rail_shots: ShotBuffer = ShotBuffer.new()
 	var rail_only := WeaponSystem.new()
 	var rail_only_hits: int = rail_only.try_fire(Balance.WeaponKind.RAIL, Vector3(0.0, 0.0, 0.0), Vector3(0.0, 0.0, 1.0), rail_swarm, rail_eco, rail_shots)
 	_check(rail_swarm.alive[behind] == 1 and rail_swarm.alive[in_front] == 0 and rail_only_hits == 1, "rail ignores enemies behind the origin")
@@ -229,7 +275,7 @@ func _test_weapons() -> void:
 	nova_swarm.x[table_hit] = 0.0
 	nova_swarm.y[table_hit] = 0.0
 	nova_swarm.z[table_hit] = 0.0
-	var nova_shots: Array = []
+	var nova_shots: ShotBuffer = ShotBuffer.new()
 	var nova_table := WeaponSystem.new()
 	var nova_table_hits: int = nova_table.try_fire(Balance.WeaponKind.NOVA, Vector3(0.0, 0.5, 0.0), Vector3(0.0, -1.0, 0.0), nova_swarm, nova_eco, nova_shots)
 	_check(nova_table_hits == 1 and nova_swarm.alive[table_hit] == 0, "nova bursts where the aim crosses the table")
@@ -267,7 +313,7 @@ func _test_towers() -> void:
 	s4.x[target] = 0.1
 	s4.y[target] = 0.0
 	s4.z[target] = 0.0
-	var tower_shots: Array = []
+	var tower_shots: ShotBuffer = ShotBuffer.new()
 	towers.tick(0.1, s4, eco5, tower_shots, null)
 	_check(tower_shots.size() == 1 and s4.alive[target] == 0, "turret kills an enemy in range")
 	_check(placed != null and towers.upgrade(placed, eco5) and placed.level == 2, "tower upgrades to level 2")

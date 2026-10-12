@@ -9,7 +9,8 @@
     "Apache-2.0",
     "BSD-2-Clause",
     "BSD-3-Clause",
-    "Public-Domain"
+    "Public-Domain",
+    "project-owned"
   ],
   "assets": [
     {
@@ -43,7 +44,7 @@
       "license": "CC0-1.0",
       "author": "Kenney (kenney.nl)",
       "source": "Kenney Digital Audio, via ctoth/claudio-soundpack-retro-arcade (README says CC0; the repo has no LICENSE file)",
-      "notes": "Electric arc. Closest stand-in; no crackle loop found."
+      "notes": "Electric arc. Closest stand-in; no crackle loop found. LICENCE NOT CONFIRMED AT SOURCE: the CC0 claim comes only from the README of the ctoth/claudio-soundpack-retro-arcade mirror, and that repo has no LICENSE file. Not checked against Kenney's own page. Kept on that basis; see the known gaps in README.md."
     },
     {
       "id": "sfx.shot.scatter",
@@ -219,6 +220,7 @@
       "license": "CC-BY-4.0",
       "author": "Kevin MacLeod (incompetech.com)",
       "source": "Space Fighter Loop, Kevin MacLeod, incompetech.com/music/royalty-free/",
+      "source_url": "https://incompetech.com/music/royalty-free/",
       "notes": "Battle music: driving orchestral space-combat loop. CC-BY-4.0: attribution required (see CREDITS.md)."
     },
     {
@@ -230,6 +232,7 @@
       "license": "CC-BY-4.0",
       "author": "Kevin MacLeod (incompetech.com)",
       "source": "Fanfare for Space, Kevin MacLeod, incompetech.com/music/royalty-free/",
+      "source_url": "https://incompetech.com/music/royalty-free/",
       "notes": "Hub/menu music: heroic orchestral space fanfare (star-wars vibe). CC-BY-4.0: attribution required (see CREDITS.md)."
     },
     {
@@ -242,6 +245,17 @@
       "author": "lavenderdotpet",
       "source": "CC0-Public-Domain-Sounds, bb - Fans and Drones folder, Large Fan.wav (repo LICENSE is CC0 1.0)",
       "notes": "Low battlefield hum. Machine recording; play looped at low volume."
+    },
+    {
+      "id": "amb.menu",
+      "event": "ambient_menu",
+      "generator": "scripts/gen_menu_ambience.py",
+      "path": "godot/assets/audio/amb.menu.wav",
+      "sha256": "13703fca4ddca356e792d60f2f4cdba900d34014fb5c0632f6f8ac87dc4ebdb4",
+      "license": "project-owned",
+      "author": "PointBlank Swarm project",
+      "source": "Generated, project-owned: synthesized by scripts/gen_menu_ambience.py (seeded noise, no third-party samples)",
+      "notes": "Pregame menu sea-and-wind loop, 46 s, mono 22.05 kHz; read by audio.gd as the menu music. Built by fetch_assets.py when the file is missing (needs numpy). Not downloaded."
     }
   ]
 }

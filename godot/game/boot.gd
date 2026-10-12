@@ -207,29 +207,35 @@ func _process(delta: float) -> void:
 	quality.tick(dt, xr_iface if _xr_on else null, view.renderer if view != null else null)
 
 	var presses: Array = _no_presses if locomoting else controls.ui_presses()
-	var ui_over: bool = Ui.update(controls.ui_pointers(), presses)
+	# Hover is per pointer. Only the AIM pointer (index 0 of ui_pointers(): right hand in XR, mouse on desktop)
+	# gates the battle. The other hand's hover neither blocks its own fire nor drops its own press.
+	var over: Array = Ui.update(controls.ui_pointers(), presses)
+	var ui_over: bool = not over.is_empty() and bool(over[0])
 	if hud_bar != null and is_instance_valid(hud_bar):
 		hud_bar.follow(xr_cam if _xr_on else desk_cam, dt)
 
 	# The hub menu stays in front of the player, but with a DEAD ZONE: it holds still while
 	# the gaze is within ~35 degrees (so reading at a slight angle doesn't make it swim) and
 	# only glides across when the player has clearly turned away (owner refinement 2026-10-11).
+	# Both the head yaw and the hub yaw are world-space angles (global_rotation), so the parent's transform never skews them.
 	if state == "hub" and hub != null and is_instance_valid(hub):
 		var cam: Node3D = xr_cam if _xr_on else desk_cam
 		var f: Vector3 = -cam.global_transform.basis.z
 		if absf(f.x) + absf(f.z) > 0.05:
 			var want: float = atan2(-f.x, -f.z)
-			var diff: float = absf(angle_difference(hub.rotation.y, want))
+			var diff: float = absf(angle_difference(hub.global_rotation.y, want))
 			if diff > HUB_FOLLOW_START:
 				_hub_following = true
 			if _hub_following:
-				hub.rotation.y = lerp_angle(hub.rotation.y, want, clampf(dt * 3.5, 0.0, 1.0))
+				hub.global_rotation.y = lerp_angle(hub.global_rotation.y, want, clampf(dt * 3.5, 0.0, 1.0))
 				if diff < HUB_FOLLOW_STOP:
 					_hub_following = false
 	if _xr_on and hands != null:
 		_update_hands()
 		if state == "battle" and battle != null:
-			hands.set_arms(battle.weapon_kind(), battle.weapon_kind_left(), battle.tower_choice())
+			# The benchmark builds nothing, so it shows no tower icon (tower_choice() would otherwise show the TURRET default).
+			var tower_kind: int = -1 if battle.benchmark else battle.tower_choice()
+			hands.set_arms(battle.weapon_kind(), battle.weapon_kind_left(), tower_kind)
 		else:
 			hands.set_arms(Balance.WeaponKind.BLASTER, Balance.WeaponKind.BLASTER, -1)
 	if state == "dialogue":
@@ -239,19 +245,25 @@ func _process(delta: float) -> void:
 		_tick_battle(dt, ui_over)
 
 
-## Neutralises every action intent for this frame so a two-handed grab never fires, places or
-## sells. Held and edge intents alike are cleared; the UI press array is swapped out separately.
+## Neutralises every action intent for this frame, on both hands, so a two-handed grab never fires, places,
+## sells, calls, uses the ally tool or cycles a weapon or tower. Held and edge intents alike are cleared;
+## the UI press array is swapped out separately.
 func _suppress_input() -> void:
 	controls.fire = false
+	controls.fire_left = false
 	controls.sell = false
 	controls.place = false
 	controls.upgrade = false
 	controls.call_wave = false
 	controls.advance = false
 	controls.menu = false
+	controls.lemming_explode = false
+	controls.lemming_deploy = false
 	controls.press_right = false
 	controls.press_left = false
+	controls.press_mouse = false
 	controls.weapon_step = 0
+	controls.weapon_step_right = 0
 	controls.tower_step = 0
 
 
@@ -346,6 +358,9 @@ func _clear_content() -> void:
 	battle = null
 	dialogue = null
 	view = null
+	# The hub is a child of Boot, not `content`, so free it here; the loop below only covers `content`.
+	if hub != null and is_instance_valid(hub):
+		hub.queue_free()
 	hub = null
 	# The HUD bar's buttons were just dropped from Ui's registry, so the bar goes with them.
 	if hud_bar != null:
@@ -386,9 +401,10 @@ func show_hub(tab: String, message: String, keep_arm: bool = false) -> void:
 		reset_armed = false
 	state = "hub"
 	_apply_theme(_themes[0])
+	# The hub is a child of Boot, not `content`: locomotion zoom must never move the menu (same rule as the HUD bar).
 	hub = Hub.new(self, tab, message)
-	content.add_child(hub)
-	Audio.music("menu")
+	add_child(hub)
+	Audio.play_music("hub")
 	Audio.ambient(false)
 
 
@@ -433,7 +449,7 @@ func _begin_battle() -> void:
 		dialogue.queue_free()
 		dialogue = null
 	state = "battle"
-	Audio.music("battle")
+	Audio.play_music("battle")
 	Audio.ambient(true)
 
 
@@ -459,7 +475,7 @@ func start_benchmark() -> void:
 	_attach_hud()
 	battle = BattleController.new(view, profile, mods, true, quality)
 	state = "battle"
-	Audio.music("battle")
+	Audio.play_music("battle")
 	Audio.ambient(true)
 
 
@@ -551,24 +567,35 @@ func _on_result_continue(cleared: bool) -> void:
 		show_hub("stages", "Chapter failed. Upgrade in SHOP and try again.")
 
 
+## Index of the final chapter (the finale), taken from StageCatalog so it follows the catalog size.
+func _last_chapter() -> int:
+	return StageCatalog.count() - 1
+
+
 func _play_outro() -> void:
 	_clear_content()
 	_outro_chapter = stage_index
-	# The final chapter's outro has one branch line per ending flag. Without either flag it would play nothing,
-	# so fall back to the seal ending and save it.
-	if _outro_chapter == StageCatalog.count() - 1 and not profile.has_flag("gate_seal") and not profile.has_flag("gate_harness"):
+	# The final chapter's outro, when it has lines, has one branch line per ending flag. Without either flag those
+	# lines would play nothing, so fall back to the seal ending and save it.
+	if _outro_chapter == _last_chapter() and not profile.has_flag("gate_seal") and not profile.has_flag("gate_harness"):
 		profile.set_flag("gate_seal")
 		save()
 	_apply_theme(_stages[_outro_chapter]["theme"])
+	var lines: Array = Story.outro(_outro_chapter)
+	# Story has written outro lines for only some chapters. A chapter without them skips the dialogue and goes
+	# straight to the normal completion (no empty dialogue is started, and no text is invented).
+	if lines.is_empty():
+		_on_outro_done()
+		return
 	state = "dialogue"
 	dialogue = Dialogue.new(voice, profile, Callable(self, "save"))
 	content.add_child(dialogue)
-	dialogue.play(Story.outro(_outro_chapter), Callable(self, "_on_outro_done"))
+	dialogue.play(lines, Callable(self, "_on_outro_done"))
 
 
 func _on_outro_done() -> void:
 	save()
-	var finale: bool = _outro_chapter == StageCatalog.count() - 1
+	var finale: bool = _outro_chapter == _last_chapter()
 	show_hub("shop", "The Last Frequency is over. Thank you for playing." if finale
 		else "Chapter complete. Upgrades are open between chapters.")
 

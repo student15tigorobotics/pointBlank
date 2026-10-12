@@ -114,16 +114,28 @@ Generated from godot/assets/manifest.json by scripts/fetch_assets.py. Do not edi
 - File: `godot/assets/audio/music.battle.mp3`
 - Author: Kevin MacLeod (incompetech.com)
 - Source: Space Fighter Loop, Kevin MacLeod, incompetech.com/music/royalty-free/
+- Source URL: https://incompetech.com/music/royalty-free/
+- Track URL: https://incompetech.com/music/royalty-free/mp3-royaltyfree/Space%20Fighter%20Loop.mp3
 - Licence: CC-BY-4.0 (attribution required)
+- Licence URL: https://creativecommons.org/licenses/by/4.0/
 
 ## music.hub
 - File: `godot/assets/audio/music.hub.mp3`
 - Author: Kevin MacLeod (incompetech.com)
 - Source: Fanfare for Space, Kevin MacLeod, incompetech.com/music/royalty-free/
+- Source URL: https://incompetech.com/music/royalty-free/
+- Track URL: https://incompetech.com/music/royalty-free/mp3-royaltyfree/Fanfare%20for%20Space.mp3
 - Licence: CC-BY-4.0 (attribution required)
+- Licence URL: https://creativecommons.org/licenses/by/4.0/
 
 ## amb.battlefield
 - File: `godot/assets/audio/amb.battlefield.wav`
 - Author: lavenderdotpet
 - Source: CC0-Public-Domain-Sounds, bb - Fans and Drones folder, Large Fan.wav (repo LICENSE is CC0 1.0)
 - Licence: CC0-1.0 (attribution not required)
+
+## amb.menu
+- File: `godot/assets/audio/amb.menu.wav`
+- Author: PointBlank Swarm project
+- Source: Generated, project-owned: synthesized by scripts/gen_menu_ambience.py (seeded noise, no third-party samples)
+- Licence: project-owned (attribution not required)

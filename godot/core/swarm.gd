@@ -47,6 +47,7 @@ var seg: PackedInt32Array = PackedInt32Array()   # current segment index (monoto
 var lane: PackedFloat32Array = PackedFloat32Array()  # lateral offset from the path centre, +-LANE_HALF
 var clump_count: PackedInt32Array = PackedInt32Array()  # 1 = individual; N>1 = a merged crowd of N
 var extra_reward: PackedInt32Array = PackedInt32Array() # credits carried by absorbed members
+var clump_core_damage: PackedInt32Array = PackedInt32Array()  # core damage the whole body deals on a leak (sum over members)
 
 var path: BattlePath
 
@@ -60,6 +61,7 @@ var _vz: PackedFloat32Array
 var _cum: PackedFloat32Array
 var _last_seg: int = 0
 var _radius: PackedFloat32Array = PackedFloat32Array()   # per EnemyKind body radius
+var _core_damage: PackedInt32Array = PackedInt32Array()  # per EnemyKind core damage on leak
 var _sep_buf: PackedInt32Array = PackedInt32Array()      # neighbour scratch for _separate
 
 
@@ -83,6 +85,7 @@ func _init(p: BattlePath, cap: int) -> void:
 	lane.resize(cap)
 	clump_count.resize(cap)
 	extra_reward.resize(cap)
+	clump_core_damage.resize(cap)
 	_free.resize(cap)
 	var cells: int = MERGE_SIDE * MERGE_SIDE
 	_merge_count.resize(cells)
@@ -96,12 +99,14 @@ func _init(p: BattlePath, cap: int) -> void:
 	_base_hp.resize(ENEMY_KINDS)
 	_base_speed.resize(ENEMY_KINDS)
 	_radius.resize(ENEMY_KINDS)
+	_core_damage.resize(ENEMY_KINDS)
 	for k in range(ENEMY_KINDS):
 		var st: Dictionary = Balance.enemy(k)
 		_hover[k] = st["hover"]
 		_base_hp[k] = st["hp"]
 		_base_speed[k] = st["speed"]
 		_radius[k] = float(st["scale"]) * SEP_RADIUS_MUL
+		_core_damage[k] = int(st["core_damage"])
 
 	_vx = path.vx
 	_vz = path.vz
@@ -136,6 +141,7 @@ func spawn(kind_i: int, hp_scale: float, seed_value: float) -> int:
 	lane[i] = (seed_value * 2.0 - 1.0) * LANE_HALF * 0.8
 	clump_count[i] = 1
 	extra_reward[i] = 0
+	clump_core_damage[i] = _core_damage[kind_i]
 	_place(i)
 	return i
 
@@ -186,7 +192,10 @@ func step(dt: float, economy: BattleEconomy, grid: SpatialGrid = null) -> void:
 			advance = _separate(i, advance, dt, grid)
 		dist[i] += advance
 		if dist[i] >= plen:
-			for leak_n in mini(clump_count[i], 40):
+			# A merged crowd leaks as one group: every member counts, the core takes the summed damage.
+			if clump_count[i] > 1:
+				economy.on_leak_group(clump_core_damage[i], clump_count[i])
+			else:
 				economy.on_leak(kind[i])
 			kill(i)
 			continue
@@ -330,12 +339,14 @@ func merge_crowds() -> void:
 		var total_max: float = 0.0
 		var total_n: int = 0
 		var total_reward: int = 0
+		var total_core: int = 0
 		i2 = _merge_head[c]
 		while i2 >= 0:
 			total_hp += hp[i2]
 			total_max += max_hp[i2]
 			total_n += clump_count[i2]
 			total_reward += extra_reward[i2]
+			total_core += clump_core_damage[i2]
 			if i2 != survivor:
 				total_reward += int(Balance.enemy(kind[i2])["reward"])
 				alive[i2] = 0
@@ -347,6 +358,7 @@ func merge_crowds() -> void:
 		max_hp[survivor] = total_max
 		clump_count[survivor] = total_n
 		extra_reward[survivor] = total_reward
+		clump_core_damage[survivor] = total_core
 
 
 func _merge_cell(px: float, pz: float) -> int:

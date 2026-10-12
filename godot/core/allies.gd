@@ -10,7 +10,7 @@
 
 class_name AllySquad
 extends RefCounted
-## Lemming-style friendly fighters: dropped onto the path, they march AGAINST the enemy flow
+## Drone allies: friendly fighters dropped onto the path, they march AGAINST the enemy flow
 ## (toward the spawn gate), brawling whatever they meet. An anti-enemy stream rather than a
 ## bullet or a tower. Engine-free SoA like Swarm; the view draws them from these arrays.
 
@@ -19,7 +19,9 @@ const SPEED: float = 0.22          # m/s marching toward the spawn gate
 const DPS: float = 30.0            # melee damage per second to the enemy being fought
 const HURT_PER_SECOND: float = 12.0  # damage an ally takes while brawling
 const MAX_HP: float = 60.0
-const REACH: float = 0.1           # fight-start distance
+const REACH: float = 0.1           # fight-start distance, and the radius of an ally's stall
+const STALL_MUL: float = 0.0       # speed multiplier for enemies within REACH of a live ally (0 = halted)
+const STALL_SECONDS: float = 0.2   # outlives a frame, so the stall holds for as long as the ally stands
 
 var alive_count: int = 0
 var dist: PackedFloat32Array = PackedFloat32Array()   # along-path position, walks toward 0
@@ -64,7 +66,8 @@ func spawn_at(d: float, count: int) -> int:
 
 
 ## March, brawl, die. Enemies in reach get melee damage; the ally takes wear in return and
-## stands still while fighting, so a thick column stalls them — bodies against bodies.
+## stands still while fighting. Every enemy in reach is also stalled (swarm.slow), so a thick
+## column jams behind the ally: bodies against bodies.
 func tick(dt: float, swarm: Swarm, grid: SpatialGrid, economy: BattleEconomy) -> void:
 	if alive_count == 0:
 		return
@@ -80,6 +83,9 @@ func tick(dt: float, swarm: Swarm, grid: SpatialGrid, economy: BattleEconomy) ->
 			var e: int = _buf[k]
 			if swarm.alive[e] == 0:
 				continue
+			# Every live enemy in reach is stalled, not only the one being fought: a body in the
+			# way blocks the whole contact.
+			swarm.slow(e, STALL_MUL, STALL_SECONDS)
 			var dx: float = swarm.x[e] - x[i]
 			var dz: float = swarm.z[e] - z[i]
 			var d2: float = dx * dx + dz * dz
@@ -97,7 +103,7 @@ func tick(dt: float, swarm: Swarm, grid: SpatialGrid, economy: BattleEconomy) ->
 		fighting[i] = 0
 		dist[i] -= SPEED * dt
 		if dist[i] <= 0.03:
-			# Reached the spawn gate with nothing left to fight: the lemming retires.
+			# Reached the spawn gate with nothing left to fight: the ally retires.
 			alive[i] = 0
 			alive_count -= 1
 			continue

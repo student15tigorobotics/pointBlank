@@ -59,6 +59,7 @@ var _ambient: AudioStreamPlayer = null
 var _track: String = ""
 var _last_ms: Dictionary = {}
 var _fade: Tween = null
+var _warned: Dictionary = {}     # music paths already reported as missing (one warning each)
 
 
 func _ready() -> void:
@@ -104,6 +105,13 @@ static func music(track: String) -> void:
 		inst._set_music(track)
 
 
+## Switches the looping background track to "hub", "battle" or "menu" at once: the old track stops and the new
+## one starts looping, with no crossfade. A missing file is skipped after one warning, so nothing plays for that key.
+static func play_music(key: String) -> void:
+	if inst != null:
+		inst._play_music(key)
+
+
 ## Battle ambience loop on or off.
 static func ambient(on: bool) -> void:
 	if inst == null:
@@ -141,17 +149,48 @@ func _set_music(track: String) -> void:
 		_fade.tween_property(_music, "volume_db", -40.0, FADE_S)
 		_fade.tween_callback(_music.stop)
 		return
-	var s: AudioStream = load(MUSIC[track])
+	var s: AudioStream = _load_track(MUSIC[track])
 	if s == null:
 		return
+	_music.stream = s
+	_music.volume_db = -40.0
+	_music.play()
+	_fade = create_tween()
+	_fade.tween_property(_music, "volume_db", MENU_DB if track == "menu" else MUSIC_DB, FADE_S)
+
+
+## Hard switch for play_music: stop the old track, start the new one looping. No tween is involved.
+func _play_music(key: String) -> void:
+	if key == _track and _music.playing:
+		return
+	_track = key
+	if _fade != null and _fade.is_valid():
+		_fade.kill()
+	_fade = null
+	_music.stop()
+	if not MUSIC.has(key):
+		return
+	var s: AudioStream = _load_track(MUSIC[key])
+	if s == null:
+		return
+	_music.stream = s
+	_music.volume_db = MENU_DB if key == "menu" else MUSIC_DB
+	_music.play()
+
+
+## Loads a background stream set to loop. A missing file (or one that fails to load) returns null, with one
+## warning per path, and the caller plays nothing.
+func _load_track(path: String) -> AudioStream:
+	var s: AudioStream = load(path) if ResourceLoader.exists(path) else null
+	if s == null:
+		if not _warned.has(path):
+			_warned[path] = true
+			push_warning("Audio: music file missing or not imported, track skipped: " + path)
+		return null
 	if s is AudioStreamMP3:
 		s.loop = true
 	elif s is AudioStreamWAV:
 		s.loop_mode = AudioStreamWAV.LOOP_FORWARD
 		var frame_bytes: int = (2 if s.format == AudioStreamWAV.FORMAT_16_BITS else 1) * (2 if s.stereo else 1)
 		s.loop_end = s.data.size() / frame_bytes
-	_music.stream = s
-	_music.volume_db = -40.0
-	_music.play()
-	_fade = create_tween()
-	_fade.tween_property(_music, "volume_db", MENU_DB if track == "menu" else MUSIC_DB, FADE_S)
+	return s

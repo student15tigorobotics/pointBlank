@@ -108,6 +108,13 @@ func on_leak(kind: int) -> void:
 	core_hp = maxi(0, core_hp - _core_damage[kind])
 
 
+## A merged crowd that reaches the core: every absorbed member leaks, and the core takes the
+## crowd's summed damage once. Swarm sums the damage per member, so the total is not re-derived here.
+func on_leak_group(total_damage: int, members: int) -> void:
+	leaks += members
+	core_hp = maxi(0, core_hp - total_damage)
+
+
 func on_early_call(bonus: int) -> void:
 	early_calls += 1
 	earn(bonus)

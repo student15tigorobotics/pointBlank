@@ -15,6 +15,7 @@ extends RefCounted
 
 static var buttons: Array = []
 static var _hover_id: int = 0   # instance id of last frame's hovered button, for the hover blip
+static var _over: Array = []    # per-pointer hover result of the last update(), reused so the frame loop does not allocate
 
 static var PANEL: Color = Color(0.03, 0.05, 0.09, 0.92)
 static var ACCENT: Color = Color(0.25, 0.95, 0.92)
@@ -93,12 +94,14 @@ static func face_center(node: Node3D, target: Vector3) -> void:
 
 
 ## Hit-tests every pointer, updates hover state, and fires each pointer's own press on the button it hovers.
-## presses[i] belongs to pointers[i]. Returns true if any pointer is over a button.
-static func update(pointers: Array, presses: Array) -> bool:
+## presses[i] belongs to pointers[i]. Returns one bool per pointer, in the same order: true if that pointer is
+## over a button. The array is reused on the next call, so read it straight away rather than keeping it.
+static func update(pointers: Array, presses: Array) -> Array:
 	_prune_and_clear_hover()
-	var over: bool = false
+	_over.resize(pointers.size())
 	var hover_now: int = 0
 	for pi in pointers.size():
+		_over[pi] = false
 		var p: Pointer = pointers[pi]
 		if not p.valid:
 			continue
@@ -114,7 +117,7 @@ static func update(pointers: Array, presses: Array) -> bool:
 				best = entry
 		if best == null:
 			continue
-		over = true
+		_over[pi] = true
 		hover_now = best.get_instance_id()
 		best.set_hovered(true)
 		var pressed: bool = pi < presses.size() and bool(presses[pi])
@@ -124,7 +127,7 @@ static func update(pointers: Array, presses: Array) -> bool:
 	if hover_now != 0 and hover_now != _hover_id:
 		Audio.play("ui.hover", -10.0)
 	_hover_id = hover_now
-	return over
+	return _over
 
 
 ## Drops buttons that have been freed without Ui.remove, and clears hover on the rest.

@@ -26,6 +26,7 @@ const STRIDE: int = 16
 const SPRITE_SCALE: float = 1.3       # was 3.2: oversized additive sprites bloomed into auroras
 const BAR_WIDTH: float = 0.06         # health bar full width in metres
 const BAR_HEIGHT: float = 0.008
+const UPLOAD_STEP: int = 64           # multimesh instance counts and buffers move in steps of this many instances
 
 # Merged crowds (Swarm.merge_crowds makes them persistent simulation objects) render as ONE
 # finer sphere scaled by the body count. CLUMP_N only normalizes that visual scale here.
@@ -54,6 +55,7 @@ var _mm_bar: MultiMesh               # health bars over near (mesh LOD) enemies
 var _mm_clump: MultiMesh             # one high-face icosphere per packed crowd
 
 # Each buffer is written only by direct member index (_buf_0[o] = v). A local alias would make every write copy the array.
+# A buffer always holds exactly instance_count * STRIDE floats of its multimesh (see _reserve).
 var _buf_0: PackedFloat32Array = PackedFloat32Array()
 var _buf_1: PackedFloat32Array = PackedFloat32Array()
 var _buf_2: PackedFloat32Array = PackedFloat32Array()
@@ -88,26 +90,19 @@ func _init(theme: Dictionary = {}, cap: int = 0) -> void:
 	_counts.resize(4)
 	_counts.fill(0)
 
-	_mm_0 = _make_multimesh(Meshes.shape_mesh(Balance.MeshShape.TETRA), cap)
-	_mm_1 = _make_multimesh(Meshes.shape_mesh(Balance.MeshShape.OCTA), cap)
-	_mm_2 = _make_multimesh(Meshes.shape_mesh(Balance.MeshShape.ICOSA), cap)
+	_mm_0 = _make_multimesh(Meshes.shape_mesh(Balance.MeshShape.TETRA))
+	_mm_1 = _make_multimesh(Meshes.shape_mesh(Balance.MeshShape.OCTA))
+	_mm_2 = _make_multimesh(Meshes.shape_mesh(Balance.MeshShape.ICOSA))
 	var quad := QuadMesh.new()
 	quad.size = Vector2(1.0, 1.0)
-	_mm_sprite = _make_multimesh(quad, cap)
+	_mm_sprite = _make_multimesh(quad)
 	var bar_quad := QuadMesh.new()
 	bar_quad.size = Vector2(1.0, 1.0)
-	_mm_bar = _make_multimesh(bar_quad, cap)
+	_mm_bar = _make_multimesh(bar_quad)
 	# Clump body: ONE pre-baked crowd mesh (a mound of small enemy bodies combined into a
 	# single mesh), so a merged mob still costs exactly one instance but reads as a group
 	# of enemies rather than a sphere (owner 2026-10-12).
-	_mm_clump = _make_multimesh(_build_crowd_mesh(), CLUMP_MAX)
-
-	_buf_0 = _zeroed(cap * STRIDE)
-	_buf_1 = _zeroed(cap * STRIDE)
-	_buf_2 = _zeroed(cap * STRIDE)
-	_buf_sprite = _zeroed(cap * STRIDE)
-	_buf_bar = _zeroed(cap * STRIDE)
-	_buf_clump = _zeroed(CLUMP_MAX * STRIDE)
+	_mm_clump = _make_multimesh(_build_crowd_mesh())
 
 	var inst_mat: StandardMaterial3D = Meshes.instanced_material()
 	_add_node(_mm_0, inst_mat)
@@ -145,6 +140,17 @@ func draw(swarm: Swarm, eye: Vector3, forward: Vector3) -> void:
 	var fx: float = forward.x
 	var fy: float = forward.y
 	var fz: float = forward.z
+
+	# Every bucket holds at most one instance per live slot, so each multimesh is sized to the swarm's high-water mark
+	# (in UPLOAD_STEP steps) and the upload carries no more than that. high_water only rises within a swarm, so the
+	# resize runs a few times per battle, not per frame. Sizing to the exact visible count would need a second
+	# per-instance pass over the swarm, which costs more GDScript time than the upload it saves.
+	_buf_0 = _reserve(_mm_0, _buf_0, high)
+	_buf_1 = _reserve(_mm_1, _buf_1, high)
+	_buf_2 = _reserve(_mm_2, _buf_2, high)
+	_buf_sprite = _reserve(_mm_sprite, _buf_sprite, high)
+	_buf_bar = _reserve(_mm_bar, _buf_bar, high)
+	_buf_clump = _reserve(_mm_clump, _buf_clump, mini(high, CLUMP_MAX))
 
 	var mesh_total: int = 0
 	var sprite_count: int = 0
@@ -320,6 +326,17 @@ func visible_total() -> int:
 	return visible_meshes + visible_sprites
 
 
+## Grows one multimesh to hold n instances, in UPLOAD_STEP steps, and returns its buffer. MultiMesh.buffer must be
+## exactly instance_count * STRIDE floats (Godot rejects any other size), so the count and the buffer change together.
+## Never shrinks: a smaller swarm simply leaves the tail unused.
+func _reserve(mm: MultiMesh, buf: PackedFloat32Array, n: int) -> PackedFloat32Array:
+	var want: int = ((n + UPLOAD_STEP - 1) / UPLOAD_STEP) * UPLOAD_STEP
+	if want > mm.instance_count:
+		mm.instance_count = want
+		buf.resize(want * STRIDE)
+	return buf
+
+
 ## Bakes a mound of small enemy bodies into one unit-sized mesh. Deterministic layout; per-body
 ## brightness is baked into vertex colours and multiplies the instance's palette tint.
 func _build_crowd_mesh() -> ArrayMesh:
@@ -351,12 +368,10 @@ func _build_crowd_mesh() -> ArrayMesh:
 	return st.commit()
 
 
-
-func _make_multimesh(mesh: Mesh, cap: int) -> MultiMesh:
+func _make_multimesh(mesh: Mesh) -> MultiMesh:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
-	mm.instance_count = cap
 	mm.visible_instance_count = 0
 	mm.mesh = mesh
 	return mm
@@ -367,10 +382,3 @@ func _add_node(mm: MultiMesh, mat: Material) -> void:
 	node.multimesh = mm
 	node.material_override = mat
 	add_child(node)
-
-
-func _zeroed(count: int) -> PackedFloat32Array:
-	var a := PackedFloat32Array()
-	a.resize(count)
-	a.fill(0.0)
-	return a

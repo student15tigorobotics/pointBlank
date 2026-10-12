@@ -44,6 +44,7 @@ const BALL_CRUSH_RADIUS: float = 0.11
 
 var _buf: PackedInt32Array = PackedInt32Array()
 var _next: int = 0
+var _hit_t: float = 0.0   # side result of _first_contact: entry fraction of the last hit
 
 
 func _init() -> void:
@@ -104,7 +105,8 @@ func fire_ball(origin: Vector3, velocity: Vector3, flight_range: float, crush_dp
 
 
 ## Advances every bolt and lands hits. Appends [x, y, z, style, killed] per impact to `impacts`
-## (flat runs of 5). A bolt that exhausts its range dies without an impact entry.
+## (flat runs of 5). A bolt that exhausts its range dies without an impact entry. Hits are swept
+## along the frame's flight segment, so a long frame cannot skip an enemy.
 func tick(dt: float, swarm: Swarm, grid: SpatialGrid, economy: BattleEconomy, impacts: Array) -> void:
 	if alive_count == 0:
 		return
@@ -117,42 +119,89 @@ func tick(dt: float, swarm: Swarm, grid: SpatialGrid, economy: BattleEconomy, im
 		var travel: float = speed[i] * dt
 		if travel > left[i]:
 			travel = left[i]
+		# The segment flown this frame runs from the old position to the new one. Hits are swept
+		# along it, so a long frame cannot carry a bolt clean through an enemy.
+		var sx0: float = px[i]
+		var sy0: float = py[i]
+		var sz0: float = pz[i]
 		px[i] += dx[i] * travel
 		py[i] += dy[i] * travel
 		pz[i] += dz[i] * travel
 		left[i] -= travel
+		var seg_x: float = px[i] - sx0
+		var seg_y: float = py[i] - sy0
+		var seg_z: float = pz[i] - sz0
 
 		# Ground or range out: the bolt fizzles with a small impact so misses still read.
 		var fizzled: bool = left[i] <= 0.0 or py[i] < -0.02
 
 		var hit: int = -1
+		var hit_t: float = 0.0   # where along the segment the hit lands: 0 = start, 1 = end
 		if not fizzled and swarm.alive_count > 0:
+			# Candidates from the grid cells that cover the whole segment: its midpoint, plus half
+			# its length, plus the hit radius.
+			var half_len: float = 0.5 * sqrt(seg_x * seg_x + seg_z * seg_z)
 			_buf.clear()
-			_buf = grid.collect(px[i], pz[i], HIT_RADIUS * 2.0, _buf)
-			var best: float = HIT_RADIUS * HIT_RADIUS
-			for k in _buf.size():
-				var e: int = _buf[k]
-				var ex: float = swarm.x[e] - px[i]
-				var ey: float = swarm.y[e] - py[i]
-				var ez: float = swarm.z[e] - pz[i]
-				var d2: float = ex * ex + ey * ey + ez * ez
-				if d2 <= best:
-					best = d2
-					hit = e
+			_buf = grid.collect(sx0 + seg_x * 0.5, sz0 + seg_z * 0.5, half_len + HIT_RADIUS * 2.0, _buf)
+			hit = _first_contact(swarm, sx0, sy0, sz0, seg_x, seg_y, seg_z)
+			hit_t = _hit_t
 		if hit < 0 and not fizzled:
 			continue
 
 		alive[i] = 0
 		alive_count -= 1
 		var killed: bool = false
+		# The impact sits where the bolt touched the enemy, or at its end when it only fizzled.
+		var ix: float = px[i]
+		var iy: float = py[i]
+		var iz: float = pz[i]
 		if hit >= 0:
+			ix = sx0 + seg_x * hit_t
+			iy = sy0 + seg_y * hit_t
+			iz = sz0 + seg_z * hit_t
 			killed = Combat.hit(swarm, hit, damage[i], economy)
 		if hit >= 0 or left[i] <= 0.0 or py[i] < -0.02:
-			impacts.append(px[i])
-			impacts.append(py[i])
-			impacts.append(pz[i])
+			impacts.append(ix)
+			impacts.append(iy)
+			impacts.append(iz)
 			impacts.append(style[i])
 			impacts.append(killed)
+
+
+## Earliest enemy whose HIT_RADIUS sphere the frame's segment enters. Returns its slot, or -1.
+## The entry fraction (0 = segment start, 1 = segment end) is left in _hit_t. Candidates are the
+## grid entries in _buf. Ties go to the later candidate, as the point test did.
+func _first_contact(swarm: Swarm, sx0: float, sy0: float, sz0: float, seg_x: float, seg_y: float, seg_z: float) -> int:
+	var seg2: float = seg_x * seg_x + seg_y * seg_y + seg_z * seg_z
+	var r2: float = HIT_RADIUS * HIT_RADIUS
+	var best: int = -1
+	var best_t: float = 2.0
+	for k in _buf.size():
+		var e: int = _buf[k]
+		if swarm.alive[e] == 0:
+			continue
+		# Solve |start + t * seg - enemy|^2 = r^2 for its smallest root t.
+		var fx: float = sx0 - swarm.x[e]
+		var fy: float = sy0 - swarm.y[e]
+		var fz: float = sz0 - swarm.z[e]
+		var c: float = fx * fx + fy * fy + fz * fz - r2
+		var t: float = 0.0
+		if c > 0.0:
+			# Starts outside the sphere, so the segment must reach in: a root in [0, 1] is the hit.
+			if seg2 <= 1e-12:
+				continue
+			var hb: float = fx * seg_x + fy * seg_y + fz * seg_z
+			var disc: float = hb * hb - seg2 * c
+			if disc < 0.0:
+				continue
+			t = (-hb - sqrt(disc)) / seg2
+			if t < 0.0 or t > 1.0:
+				continue
+		if t <= best_t:
+			best_t = t
+			best = e
+	_hit_t = best_t
+	return best
 
 
 ## One frame of a rolling ball: ballistic fall, floor roll with friction, continuous crush.

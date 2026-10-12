@@ -120,9 +120,12 @@ func _build_gun(hand: XRController3D) -> void:
 
 ## Weapon props per hand: both hands are always armed and may hold different weapons.
 ## tower_kind >= 0 also floats a mini icon of the selected tower above the left grip.
+## Guns and the tower icon show only while their controller is tracked; they reappear when tracking returns.
 func set_arms(right_kind: int, left_kind: int, tower_kind: int) -> void:
-	_guns[0].visible = true
-	_guns[1].visible = true
+	var right_on: bool = _tracked(_controllers[0])
+	var left_on: bool = _tracked(_controllers[1])
+	_guns[0].visible = right_on
+	_guns[1].visible = left_on
 	_blades[0].visible = right_kind == Balance.WeaponKind.SABER
 	_blades[1].visible = left_kind == Balance.WeaponKind.SABER
 	if tower_kind != _icon_kind:
@@ -152,6 +155,14 @@ func set_arms(right_kind: int, left_kind: int, tower_kind: int) -> void:
 			_controllers[1].add_child(_tower_icon)
 	if _tower_icon != null:
 		_tower_icon.rotate_y(0.03)   # slow spin so it reads as an icon, not debris
+		_tower_icon.visible = left_on
+
+
+## A controller counts only while the runtime reports it tracked: the same test controls.gd uses.
+static func _tracked(c: XRController3D) -> bool:
+	if c.has_method("get_is_active"):
+		return c.get_is_active()
+	return true
 
 
 static func _part(mesh: Mesh, mat: Material, at: Vector3, rot: Vector3) -> MeshInstance3D:
