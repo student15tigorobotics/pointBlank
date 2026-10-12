@@ -1,0 +1,4 @@
+.godot/
+*.import
+__pycache__/
+assets/audio/
