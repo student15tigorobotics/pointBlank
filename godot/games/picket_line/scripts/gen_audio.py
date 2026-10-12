@@ -18,7 +18,7 @@ end of the loop, so the last sample joins the first without a seam. Effects that
 time (filter sweeps, tension ramps) are periodic over the loop for the same reason.
 
 Usage, from the repository root:
-    python3 picket-line/scripts/gen_audio.py [--out DIR]
+    python3 godot/games/picket_line/scripts/gen_audio.py [--out DIR]
 """
 
 import argparse
@@ -1188,7 +1188,7 @@ def encode_ogg(ffmpeg, path, stereo):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Generate Picket Line music and sound effects as OGG.")
-    ap.add_argument("--out", default=str(DEFAULT_OUT), help="output directory (default: picket-line/assets/audio)")
+    ap.add_argument("--out", default=str(DEFAULT_OUT), help="output directory (default: godot/games/picket_line/assets/audio)")
     args = ap.parse_args(argv)
 
     ffmpeg = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"

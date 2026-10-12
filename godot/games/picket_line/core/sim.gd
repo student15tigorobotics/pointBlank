@@ -14,7 +14,7 @@ var difficulty := 0
 var mods: Dictionary = {}
 var station: Station
 var weapons: Weapons
-var projectiles: Projectiles
+var projectiles: PLProjectiles
 var enemies: Array = []
 var schedule: Array = []
 var time := 0.0
@@ -43,10 +43,10 @@ func _init(sector_index: int, diff_level: int, seed_value: int, mods_in: Diction
 	difficulty = diff_level
 	mods = Upgrades.with_defaults(mods_in)
 	_rng = Rng.new(seed_value)
-	_diff = Balance.difficulty(diff_level)
+	_diff = PLBalance.difficulty(diff_level)
 	station = Station.new(mods)
 	weapons = Weapons.new(mods)
-	projectiles = Projectiles.new()
+	projectiles = PLProjectiles.new()
 	schedule = Sectors.schedule(sector, diff_level, Rng.new(seed_value * 7919 + sector + 1))
 	_ctx = {"rail": Vector3.ZERO, "fire_mult": float(_diff.fire_mult)}
 
@@ -65,7 +65,7 @@ func step(dt: float, cmd: Dictionary) -> Array:
 		if ev.type == "shot":
 			shots += int(ev.count)
 	events.append_array(fire_events)
-	var sim_dt := dt * (Balance.FOCUS_TIME_SCALE if station.focusing else 1.0)
+	var sim_dt := dt * (PLBalance.FOCUS_TIME_SCALE if station.focusing else 1.0)
 	time += sim_dt
 	_spawn_due(events)
 	_run_ai(sim_dt, events)
@@ -90,7 +90,7 @@ func alive_count() -> int:
 
 ## Seconds left before the combo chain drops.
 func combo_left() -> float:
-	return maxf(0.0, Balance.COMBO_WINDOW - (time - _last_kill_time))
+	return maxf(0.0, PLBalance.COMBO_WINDOW - (time - _last_kill_time))
 
 
 func _apply_controls(dt: float, cmd: Dictionary, events: Array) -> void:
@@ -124,17 +124,17 @@ func _spawn_due(events: Array) -> void:
 		_last_group = group
 		var yaw := _rng.range_f(-1.2, 1.2)
 		var pitch := _rng.range_f(-0.1, 0.6)
-		var dist := _rng.range_f(Balance.SPAWN_MIN, Balance.SPAWN_MAX)
+		var dist := _rng.range_f(PLBalance.SPAWN_MIN, PLBalance.SPAWN_MAX)
 		for i in int(item.count):
-			var dir_pos := Balance.aim_dir(yaw + _rng.range_f(-0.06, 0.06), pitch + _rng.range_f(-0.04, 0.04))
-			var d := clampf(dist + _rng.range_f(-40.0, 40.0), Balance.SPAWN_MIN, Balance.SPAWN_MAX)
+			var dir_pos := PLBalance.aim_dir(yaw + _rng.range_f(-0.06, 0.06), pitch + _rng.range_f(-0.04, 0.04))
+			var d := clampf(dist + _rng.range_f(-40.0, 40.0), PLBalance.SPAWN_MIN, PLBalance.SPAWN_MAX)
 			var e := _make_enemy(int(item.kind), dir_pos * d, group, boss, float(item.get("hp_mult", 1.0)))
 			if boss:
 				events.append({"type": "boss_spawn", "enemy_id": e.id, "kind": e.kind})
 
 
 func _make_enemy(kind: int, pos: Vector3, group: int, boss: bool, hp_mult: float) -> Enemy:
-	var def: Dictionary = Balance.ENEMY_DEFS[kind]
+	var def: Dictionary = PLBalance.ENEMY_DEFS[kind]
 	var e := Enemy.new()
 	e.id = _next_id
 	_next_id += 1
@@ -149,7 +149,7 @@ func _make_enemy(kind: int, pos: Vector3, group: int, boss: bool, hp_mult: float
 	e.group = group
 	e.boss = boss
 	e.fire_timer = float(def.interval)
-	e.launch_timer = 4.0 if kind == Balance.Kind.CARRIER else 0.0
+	e.launch_timer = 4.0 if kind == PLBalance.Kind.CARRIER else 0.0
 	enemies.append(e)
 	return e
 
@@ -188,11 +188,11 @@ func _crash(ev: Dictionary, events: Array) -> void:
 
 func _resolve_fire(ev: Dictionary, events: Array) -> void:
 	if String(ev.mode) == "shell":
-		projectiles.fire_enemy_shell(ev.from, ev.to, Balance.SHELL_SPEED, float(ev.damage))
+		projectiles.fire_enemy_shell(ev.from, ev.to, PLBalance.SHELL_SPEED, float(ev.damage))
 		events.append({"type": "enemy_fire", "kind": int(ev.kind), "mode": "shell", "from": ev.from, "to": ev.to})
 		return
 	var rail_xy := Vector2(station.rail.x, station.rail.y)
-	if Vector2(ev.to.x, ev.to.y).distance_to(rail_xy) > Balance.BEAM_RADIUS:
+	if Vector2(ev.to.x, ev.to.y).distance_to(rail_xy) > PLBalance.BEAM_RADIUS:
 		events.append({"type": "enemy_fire", "kind": int(ev.kind), "mode": "beam", "from": ev.from, "to": ev.to, "hit": false})
 		return
 	var r := station.take_damage(float(ev.damage), "beam")
@@ -213,20 +213,20 @@ func _process_kills(events: Array) -> void:
 		if not e.alive or e.hp > 0.0:
 			continue
 		e.alive = false
-		e.dead_timer = Balance.DEATH_TIME
+		e.dead_timer = PLBalance.DEATH_TIME
 		kills += 1
-		if time - _last_kill_time <= Balance.COMBO_WINDOW:
+		if time - _last_kill_time <= PLBalance.COMBO_WINDOW:
 			combo += 1
 		else:
 			combo = 1
 		_last_kill_time = time
-		var mult := Scoring.combo_mult(combo)
+		var mult := PLScoring.combo_mult(combo)
 		if mult > combo_mult:
 			events.append({"type": "combo", "mult": mult, "chain": combo})
 		combo_mult = mult
-		var snap := e.first_seen_age >= 0.0 and e.age - e.first_seen_age <= Balance.SNAP_WINDOW
+		var snap := e.first_seen_age >= 0.0 and e.age - e.first_seen_age <= PLBalance.SNAP_WINDOW
 		var weak := e.last_crit
-		var pts := Scoring.kill_points(e.points, combo_mult, weak, snap)
+		var pts := PLScoring.kill_points(e.points, combo_mult, weak, snap)
 		score += pts
 		events.append({"type": "kill", "enemy_id": e.id, "kind": e.kind, "points": pts,
 			"weak": weak, "snap": snap, "boss": e.boss, "pos": e.pos})
@@ -258,6 +258,6 @@ func _check_end(events: Array) -> void:
 		finished = true
 		won = true
 		clean = station.damage_taken_sector <= 0.0
-		var bonus := Scoring.sector_bonus(sector, clean)
+		var bonus := PLScoring.sector_bonus(sector, clean)
 		score += bonus
 		events.append({"type": "sector_clear", "bonus": bonus, "clean": clean})

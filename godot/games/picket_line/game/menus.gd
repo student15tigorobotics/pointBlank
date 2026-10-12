@@ -234,6 +234,7 @@ func _fill_title(vb: VBoxContainer, data: Dictionary) -> void:
 	vb.add_child(_button("DIFFICULTY: %s" % diff.to_upper(), "cycle_difficulty", null))
 	vb.add_child(_button("HIGH SCORES", "scores", null))
 	vb.add_child(_button("OPTIONS", "options", null))
+	vb.add_child(_button("ALL GAMES", "games", null))
 	vb.add_child(_button("QUIT", "quit", null, Style.DANGER))
 
 

@@ -1,7 +1,7 @@
 # Copyright (C) 2026 tigo.robotics@gmail.com
 # This file is part of Picket Line.
 # Picket Line is free software under GPL-3.0-or-later. See LICENSE in the repository root.
-class_name Balance
+class_name PLBalance
 extends RefCounted
 ## Tuning numbers and static definitions. Change numbers here, not in the systems.
 

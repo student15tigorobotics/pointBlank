@@ -3,7 +3,7 @@
 # Picket Line is free software under GPL-3.0-or-later. See LICENSE in the repository root.
 extends SceneTree
 ## Headless core checks. Run from the repository root:
-##   godot --headless --path picket-line -s res://tests/core_tests.gd
+##   godot --headless --path picket-line -s res://games/picket_line/tests/core_tests.gd
 
 const DT := 1.0 / 60.0
 
@@ -69,11 +69,11 @@ func _test_rng() -> void:
 
 
 func _test_aim() -> void:
-	var fwd := Balance.aim_dir(0.0, 0.0)
+	var fwd := PLBalance.aim_dir(0.0, 0.0)
 	_check(fwd.is_equal_approx(Vector3(0, 0, -1)), "aim: zero angles look down -Z")
-	var up := Balance.aim_dir(0.0, 0.5)
+	var up := PLBalance.aim_dir(0.0, 0.5)
 	_check(up.y > 0.4, "aim: positive pitch looks up")
-	var yp := Balance.aim_yaw_pitch(Balance.aim_dir(0.4, 0.2))
+	var yp := PLBalance.aim_yaw_pitch(PLBalance.aim_dir(0.4, 0.2))
 	_check(absf(yp.x - 0.4) < 0.0001 and absf(yp.y - 0.2) < 0.0001, "aim: yaw and pitch round-trip")
 
 
@@ -82,7 +82,7 @@ func _test_enemy_ai() -> void:
 	var out: Array = []
 	var ctx := {"rail": Vector3.ZERO, "fire_mult": 1.0}
 	var scout := Enemy.new()
-	scout.kind = Balance.Kind.SCOUT
+	scout.kind = PLBalance.Kind.SCOUT
 	scout.pos = Vector3(0, 0, -200)
 	var t := 0.0
 	while scout.alive and t < 12.0:
@@ -93,13 +93,13 @@ func _test_enemy_ai() -> void:
 
 	out.clear()
 	var gun := Enemy.new()
-	gun.kind = Balance.Kind.GUNSHIP
+	gun.kind = PLBalance.Kind.GUNSHIP
 	gun.pos = Vector3(0, 0, -400)
 	gun.fire_timer = 999.0
 	for i in 60 * 20:
 		EnemyAI.step(gun, DT, ctx, rng, out)
 	var gun_dist := gun.pos.length()
-	_check(absf(gun_dist - Balance.ATTACK_DIST) < 2.0, "ai: gunship holds at attack range (got %.1f)" % gun_dist)
+	_check(absf(gun_dist - PLBalance.ATTACK_DIST) < 2.0, "ai: gunship holds at attack range (got %.1f)" % gun_dist)
 
 
 func _test_weak_core() -> void:
@@ -107,7 +107,7 @@ func _test_weak_core() -> void:
 	var rng := Rng.new(2)
 	var out: Array = []
 	var c := Enemy.new()
-	c.kind = Balance.Kind.CARRIER
+	c.kind = PLBalance.Kind.CARRIER
 	c.pos = Vector3(0, 0, -300)
 	c.weak_radius = 2.6
 	c.weak_dist = 7.5
@@ -122,9 +122,9 @@ func _test_weak_core() -> void:
 
 func _test_pulse_hits_and_misses() -> void:
 	var station := Station.new()
-	var projectiles := Projectiles.new()
-	var target := _enemy(Balance.Kind.DRONE, Vector3(0, 0, -100), 50.0)
-	projectiles.fire_player(Balance.Weapon.PULSE, Vector3.ZERO, Vector3(0, 0, -1), 9.0, {})
+	var projectiles := PLProjectiles.new()
+	var target := _enemy(PLBalance.Kind.DRONE, Vector3(0, 0, -100), 50.0)
+	projectiles.fire_player(PLBalance.Weapon.PULSE, Vector3.ZERO, Vector3(0, 0, -1), 9.0, {})
 	var hit_ev: Dictionary = {}
 	for i in 60:
 		for ev in projectiles.step(DT, [target], station):
@@ -133,8 +133,8 @@ func _test_pulse_hits_and_misses() -> void:
 	_check(not hit_ev.is_empty() and float(hit_ev.damage) == 9.0 and not hit_ev.crit, "pulse: straight shot hits for 9")
 	_check(absf(target.hp - 41.0) < 0.001, "pulse: target loses 9 hp")
 
-	var miss := _enemy(Balance.Kind.DRONE, Vector3(60, 0, -100), 2.0)
-	projectiles.fire_player(Balance.Weapon.PULSE, Vector3.ZERO, Vector3(0, 0, -1), 9.0, {})
+	var miss := _enemy(PLBalance.Kind.DRONE, Vector3(60, 0, -100), 2.0)
+	projectiles.fire_player(PLBalance.Weapon.PULSE, Vector3.ZERO, Vector3(0, 0, -1), 9.0, {})
 	var expired := false
 	for i in 60 * 3:
 		for ev in projectiles.step(DT, [miss], station):
@@ -145,26 +145,26 @@ func _test_pulse_hits_and_misses() -> void:
 
 func _test_weak_crit() -> void:
 	var station := Station.new()
-	var projectiles := Projectiles.new()
-	var gun := _enemy(Balance.Kind.GUNSHIP, Vector3(0, 0, -100), 170.0)
+	var projectiles := PLProjectiles.new()
+	var gun := _enemy(PLBalance.Kind.GUNSHIP, Vector3(0, 0, -100), 170.0)
 	gun.weak_radius = 1.1
 	gun.weak_dist = 3.4
 	gun.weak_offset = Vector3(0, 0, 3.4)
 	gun.weak_open = true
-	projectiles.fire_player(Balance.Weapon.PULSE, Vector3.ZERO, Vector3(0, 0, -1), 9.0, {})
+	projectiles.fire_player(PLBalance.Weapon.PULSE, Vector3.ZERO, Vector3(0, 0, -1), 9.0, {})
 	var ev_hit: Dictionary = {}
 	for i in 60:
 		for ev in projectiles.step(DT, [gun], station):
 			if ev.type == "hit":
 				ev_hit = ev
 	_check(not ev_hit.is_empty() and ev_hit.crit, "weak: open core registers a crit")
-	_check(not ev_hit.is_empty() and absf(float(ev_hit.damage) - 9.0 * Balance.WEAK_DAMAGE) < 0.001, "weak: crit deals 2.2x damage")
+	_check(not ev_hit.is_empty() and absf(float(ev_hit.damage) - 9.0 * PLBalance.WEAK_DAMAGE) < 0.001, "weak: crit deals 2.2x damage")
 
-	var closed := _enemy(Balance.Kind.GUNSHIP, Vector3(0, 0, -100), 170.0)
+	var closed := _enemy(PLBalance.Kind.GUNSHIP, Vector3(0, 0, -100), 170.0)
 	closed.weak_radius = 1.1
 	closed.weak_offset = Vector3(0, 0, 3.4)
 	closed.weak_open = false
-	projectiles.fire_player(Balance.Weapon.PULSE, Vector3.ZERO, Vector3(0, 0, -1), 9.0, {})
+	projectiles.fire_player(PLBalance.Weapon.PULSE, Vector3.ZERO, Vector3(0, 0, -1), 9.0, {})
 	var closed_crit := false
 	for i in 60:
 		for ev in projectiles.step(DT, [closed], station):
@@ -175,10 +175,10 @@ func _test_weak_crit() -> void:
 
 func _test_flak_falloff() -> void:
 	var station := Station.new()
-	var projectiles := Projectiles.new()
-	var a := _enemy(Balance.Kind.DRONE, Vector3(0, 0, -30), 100.0)
-	var b := _enemy(Balance.Kind.DRONE, Vector3(3, 0, -30), 100.0)
-	projectiles.fire_player(Balance.Weapon.FLAK, Vector3.ZERO, Vector3(0, 0, -1), 55.0, {})
+	var projectiles := PLProjectiles.new()
+	var a := _enemy(PLBalance.Kind.DRONE, Vector3(0, 0, -30), 100.0)
+	var b := _enemy(PLBalance.Kind.DRONE, Vector3(3, 0, -30), 100.0)
+	projectiles.fire_player(PLBalance.Weapon.FLAK, Vector3.ZERO, Vector3(0, 0, -1), 55.0, {})
 	var detonated := false
 	for i in 60 * 2:
 		for ev in projectiles.step(DT, [a, b], station):
@@ -192,9 +192,9 @@ func _test_flak_falloff() -> void:
 
 func _test_lance_charge() -> void:
 	var station := Station.new()
-	var projectiles := Projectiles.new()
+	var projectiles := PLProjectiles.new()
 	var weapons := Weapons.new()
-	weapons.select(Balance.Weapon.LANCE)
+	weapons.select(PLBalance.Weapon.LANCE)
 	var enemies: Array = []
 	var rng := Rng.new(3)
 	# Tap shorter than charge_min: no shot.
@@ -216,7 +216,7 @@ func _test_lance_charge() -> void:
 
 func _test_heat_lockout() -> void:
 	var station := Station.new()
-	var projectiles := Projectiles.new()
+	var projectiles := PLProjectiles.new()
 	var weapons := Weapons.new()
 	var enemies: Array = []
 	var rng := Rng.new(4)
@@ -240,7 +240,7 @@ func _test_heat_lockout() -> void:
 		station.step(0.05)
 		if not station.overheated:
 			break
-	_check(not station.overheated and station.heat < Balance.HEAT_RECOVER, "heat: cooling below 25 clears the lockout")
+	_check(not station.overheated and station.heat < PLBalance.HEAT_RECOVER, "heat: cooling below 25 clears the lockout")
 
 
 func _test_station_damage_and_dodge() -> void:
@@ -248,38 +248,38 @@ func _test_station_damage_and_dodge() -> void:
 	_check(s.dodge(1.0), "dodge: starts when off cooldown")
 	_check(not s.dodge(1.0), "dodge: refuses a second dodge during cooldown")
 	var blocked := s.take_damage(50.0, "beam")
-	_check(blocked.blocked and s.hull == Balance.STATION_HULL, "dodge: i-frames block all damage")
+	_check(blocked.blocked and s.hull == PLBalance.STATION_HULL, "dodge: i-frames block all damage")
 	for i in 30:
 		s.step(0.02)
 	_check(s.iframes <= 0.0, "dodge: i-frames end after 0.28 s")
 	var r1 := s.take_damage(50.0, "beam")
-	_check(r1.applied_shield == 50.0 and s.hull == Balance.STATION_HULL, "shield: absorbs damage before hull")
+	_check(r1.applied_shield == 50.0 and s.hull == PLBalance.STATION_HULL, "shield: absorbs damage before hull")
 	var r2 := s.take_damage(60.0, "beam")
-	_check(absf(s.hull - (Balance.STATION_HULL - 10.0)) < 0.001 and r2.applied_hull == 10.0, "shield: spill-over reaches hull")
+	_check(absf(s.hull - (PLBalance.STATION_HULL - 10.0)) < 0.001 and r2.applied_hull == 10.0, "shield: spill-over reaches hull")
 
 
 func _test_scoring() -> void:
-	_check(Scoring.combo_mult(0) == 1 and Scoring.combo_mult(3) == 2, "score: combo steps every 3 kills")
-	_check(Scoring.combo_mult(99) == Balance.COMBO_MAX, "score: combo capped")
-	_check(Scoring.kill_points(100, 2, true, true) == 350, "score: weak + snap on a 2x chain is 350")
-	_check(Scoring.sector_bonus(0, true) == 1000 + 2000 and Scoring.sector_bonus(2, false) == 3000, "score: sector bonus with clean bonus")
+	_check(PLScoring.combo_mult(0) == 1 and PLScoring.combo_mult(3) == 2, "score: combo steps every 3 kills")
+	_check(PLScoring.combo_mult(99) == PLBalance.COMBO_MAX, "score: combo capped")
+	_check(PLScoring.kill_points(100, 2, true, true) == 350, "score: weak + snap on a 2x chain is 350")
+	_check(PLScoring.sector_bonus(0, true) == 1000 + 2000 and PLScoring.sector_bonus(2, false) == 3000, "score: sector bonus with clean bonus")
 
 
 func _test_schedules() -> void:
-	var a := Sectors.schedule(1, Balance.Diff.ENSIGN, Rng.new(5))
-	var b := Sectors.schedule(1, Balance.Diff.ENSIGN, Rng.new(5))
+	var a := Sectors.schedule(1, PLBalance.Diff.ENSIGN, Rng.new(5))
+	var b := Sectors.schedule(1, PLBalance.Diff.ENSIGN, Rng.new(5))
 	_check(str(a) == str(b), "schedule: same seed gives same waves")
 	var sorted := true
 	for i in range(1, a.size()):
 		if float(a[i].t) < float(a[i - 1].t):
 			sorted = false
 	_check(sorted, "schedule: sorted by time")
-	_check(a.size() > 0 and bool(a[a.size() - 1].boss) and int(a[a.size() - 1].kind) == Balance.Kind.CARRIER,
+	_check(a.size() > 0 and bool(a[a.size() - 1].boss) and int(a[a.size() - 1].kind) == PLBalance.Kind.CARRIER,
 		"schedule: sector 2 ends with a carrier boss")
-	var last5 := Sectors.schedule(5, Balance.Diff.ENSIGN, Rng.new(8))
-	_check(int(last5[last5.size() - 1].kind) == Balance.Kind.DREADNOUGHT, "schedule: sector 6 ends with the dreadnought")
-	var cadet_total := _total_count(Sectors.schedule(0, Balance.Diff.CADET, Rng.new(1)))
-	var commander_total := _total_count(Sectors.schedule(0, Balance.Diff.COMMANDER, Rng.new(1)))
+	var last5 := Sectors.schedule(5, PLBalance.Diff.ENSIGN, Rng.new(8))
+	_check(int(last5[last5.size() - 1].kind) == PLBalance.Kind.DREADNOUGHT, "schedule: sector 6 ends with the dreadnought")
+	var cadet_total := _total_count(Sectors.schedule(0, PLBalance.Diff.CADET, Rng.new(1)))
+	var commander_total := _total_count(Sectors.schedule(0, PLBalance.Diff.COMMANDER, Rng.new(1)))
 	_check(commander_total > cadet_total, "schedule: commander spawns more aliens than cadet (%d vs %d)" % [commander_total, cadet_total])
 
 
@@ -300,7 +300,7 @@ func _test_upgrades() -> void:
 
 
 func _test_run_flow() -> void:
-	var run := Run.new(3, Balance.Diff.ENSIGN)
+	var run := Run.new(3, PLBalance.Diff.ENSIGN)
 	var sim := run.start_sector()
 	_check(not sim.finished and run.sector == 0, "run: starts at sector 1")
 	sim.finished = true
@@ -309,7 +309,7 @@ func _test_run_flow() -> void:
 	_check(run.offer_upgrades().size() == 3, "run: a win offers three upgrades")
 	run.choose(run.offer_upgrades()[0])
 	_check(run.sector == 1 and run.owned.size() == 1, "run: choosing moves to the next sector and keeps the card")
-	var lost := Sim.new(1, Balance.Diff.ENSIGN, 9)
+	var lost := Sim.new(1, PLBalance.Diff.ENSIGN, 9)
 	lost.won = false
 	run.finish_sector(lost)
 	_check(run.is_over() and not run.is_victory(), "run: a loss ends the run")
@@ -326,15 +326,15 @@ func _test_highscores() -> void:
 
 
 func _test_sim_pilot_finishes() -> void:
-	var sim := Sim.new(0, Balance.Diff.ENSIGN, 11)
+	var sim := Sim.new(0, PLBalance.Diff.ENSIGN, 11)
 	var steps := _run_pilot(sim, 60 * 400)
 	_check(sim.finished, "sim: sector 1 finishes under a scripted pilot (%d steps)" % steps)
 	print("  sector 1 pilot: won=%s score=%d kills=%d accuracy=%.2f" % [sim.won, sim.score, sim.kills, sim.accuracy()])
 
 
 func _test_sim_is_deterministic() -> void:
-	var a := Sim.new(2, Balance.Diff.ENSIGN, 77)
-	var b := Sim.new(2, Balance.Diff.ENSIGN, 77)
+	var a := Sim.new(2, PLBalance.Diff.ENSIGN, 77)
+	var b := Sim.new(2, PLBalance.Diff.ENSIGN, 77)
 	_run_pilot(a, 60 * 30)
 	_run_pilot(b, 60 * 30)
 	_check(a.score == b.score and a.kills == b.kills and a.shots == b.shots, "sim: same seed and pilot give the same result")
@@ -358,7 +358,7 @@ func _pilot_cmd(sim: Sim) -> Dictionary:
 			target = e
 	if target == null:
 		return {"fire_held": false}
-	var want := Balance.aim_yaw_pitch(target.pos)
+	var want := PLBalance.aim_yaw_pitch(target.pos)
 	var cur := Vector2(sim.station.yaw, sim.station.pitch)
 	var d := want - cur
 	return {"fire_held": true, "aim": Vector2(clampf(d.x, -0.12, 0.12), clampf(d.y, -0.12, 0.12))}
@@ -369,7 +369,7 @@ func _enemy(kind: int, pos: Vector3, hp: float) -> Enemy:
 	e.id = randi() % 100000 + 1
 	e.kind = kind
 	e.pos = pos
-	e.radius = float(Balance.ENEMY_DEFS[kind].radius)
+	e.radius = float(PLBalance.ENEMY_DEFS[kind].radius)
 	e.hp = hp
 	e.max_hp = hp
 	return e

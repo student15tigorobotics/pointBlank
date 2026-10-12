@@ -111,10 +111,10 @@ func _ensure_built() -> void:
 		return
 	_built = true
 	_body_mat = ShaderMaterial.new()
-	_body_mat.shader = load("res://shaders/enemy.gdshader")
+	_body_mat.shader = load("res://games/picket_line/shaders/enemy.gdshader")
 	_body_mat.set_shader_parameter("is_glow", false)
 	_glow_mat = ShaderMaterial.new()
-	_glow_mat.shader = load("res://shaders/enemy.gdshader")
+	_glow_mat.shader = load("res://games/picket_line/shaders/enemy.gdshader")
 	_glow_mat.set_shader_parameter("is_glow", true)
 
 	_kind_meshes.resize(6)
@@ -141,7 +141,7 @@ func _ensure_built() -> void:
 	_beam_quad.size = Vector2(1.0, 1.0)
 	for i in BEAM_POOL:
 		var mat := ShaderMaterial.new()
-		mat.shader = load("res://shaders/beam.gdshader")
+		mat.shader = load("res://games/picket_line/shaders/beam.gdshader")
 		mat.set_shader_parameter("beam_col", WARN_COLOR)
 		mat.set_shader_parameter("intensity", 2.6)
 		mat.set_shader_parameter("alpha", 0.0)
@@ -192,7 +192,7 @@ func _update_slot(s: Slot, e: Enemy, dt: float) -> void:
 	s.was_alive = e.alive
 	var grow := 1.0
 	if not e.alive:
-		grow = clampf(e.dead_timer / Balance.DEATH_TIME, 0.0, 1.0)
+		grow = clampf(e.dead_timer / PLBalance.DEATH_TIME, 0.0, 1.0)
 		# Dying hulls stay white-hot and shrink away.
 		s.flash = maxf(s.flash, 0.85 * grow)
 	s.flash = maxf(0.0, s.flash - FLASH_DECAY * dt)
@@ -248,7 +248,7 @@ func _draw_beam(e: Enemy, cam_pos: Vector3) -> void:
 		side = Vector3.RIGHT
 	side = side.normalized()
 
-	var def: Dictionary = Balance.enemy_def(e.kind)
+	var def: Dictionary = PLBalance.enemy_def(e.kind)
 	var tmax: float = maxf(0.001, float(def.telegraph))
 	var p: float = clampf(1.0 - e.telegraph / tmax, 0.0, 1.0)
 	var freq: float = lerpf(3.0, 18.0, p)
@@ -298,15 +298,15 @@ func _build_kind(kind: int) -> ArrayMesh:
 	body.begin(Mesh.PRIMITIVE_TRIANGLES)
 	glow.begin(Mesh.PRIMITIVE_TRIANGLES)
 	match kind:
-		Balance.Kind.SCOUT:
+		PLBalance.Kind.SCOUT:
 			_scout(body, glow)
-		Balance.Kind.DRONE:
+		PLBalance.Kind.DRONE:
 			_drone(body, glow)
-		Balance.Kind.GUNSHIP:
+		PLBalance.Kind.GUNSHIP:
 			_gunship(body, glow)
-		Balance.Kind.BOMBER:
+		PLBalance.Kind.BOMBER:
 			_bomber(body, glow)
-		Balance.Kind.CARRIER:
+		PLBalance.Kind.CARRIER:
 			_carrier(body, glow)
 		_:
 			_dreadnought(body, glow)

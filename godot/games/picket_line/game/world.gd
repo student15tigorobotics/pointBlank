@@ -33,7 +33,7 @@ const THEMES := [
 		"sun": Color(1.00, 0.30, 0.20)},
 ]
 
-const SkyScript := preload("res://game/sky.gd")
+const SkyScript := preload("res://games/picket_line/game/sky.gd")
 const BASE_FOV := 75.0
 const AIM_FOV := 26.0
 const SHAKE_ROT := 0.0105
@@ -171,7 +171,7 @@ func render(sim: Sim, dt: float, settings: Dictionary) -> void:
 	_time += dt
 	var st := sim.station
 
-	# Aim: basis matches Balance.aim_dir (forward is -Z).
+	# Aim: basis matches PLBalance.aim_dir (forward is -Z).
 	var aim_basis := Basis(Vector3.UP, st.yaw) * Basis(Vector3.RIGHT, st.pitch)
 
 	# Trauma shake, squared and scaled by the shake setting.
@@ -225,11 +225,11 @@ func handle_events(events: Array) -> void:
 			"shot":
 				var w := int(ev.get("weapon", 0))
 				var kick := 0.2
-				if w == Balance.Weapon.LANCE:
+				if w == PLBalance.Weapon.LANCE:
 					kick = 1.0
-				elif w == Balance.Weapon.FLAK:
+				elif w == PLBalance.Weapon.FLAK:
 					kick = 0.8
-				elif w == Balance.Weapon.SWARM:
+				elif w == PLBalance.Weapon.SWARM:
 					kick = 0.4
 				_recoil = maxf(_recoil, kick)
 			_:
@@ -370,7 +370,7 @@ func _update_cockpit(sim: Sim, dt: float) -> void:
 		Basis.from_euler(Vector3(-_recoil * 0.035 + _lag.y, _lag.x, 0.0)),
 		Vector3(0.0, 0.0, _recoil * 0.06))
 
-	var hull_frac: float = sim.station.hull / Balance.STATION_HULL
+	var hull_frac: float = sim.station.hull / PLBalance.STATION_HULL
 	if hull_frac < 0.35:
 		var blink := 0.5 + 0.5 * sin(_time * 9.0)
 		_status_mat.emission = Color(1.0, 0.2, 0.15).lerp(Color(0.2, 0.05, 0.02), blink)

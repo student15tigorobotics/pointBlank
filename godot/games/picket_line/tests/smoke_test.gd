@@ -4,10 +4,10 @@
 extends SceneTree
 ## Headless smoke run of the real scene. Starts a run, flies a scripted pilot through sectors with the
 ## real world, HUD and menus, and exercises pause, options, upgrades and debrief.
-## Run: godot --headless --path picket-line -s res://tests/smoke_test.gd
+## Run: godot --headless --path picket-line -s res://games/picket_line/tests/smoke_test.gd
 ## A script error printed by Godot counts as a failure, as does not reaching the debrief in the frame budget.
 
-const MainScript := preload("res://game/main.gd")
+const MainScript := preload("res://games/picket_line/game/main.gd")
 const MAX_FRAMES := 60 * 1200
 const SETTLE_FRAMES := 30
 
@@ -28,7 +28,7 @@ class PilotInput extends GameInput:
 		var cmd := {"fire_held": false, "scope": false, "focus_held": false}
 		if target == null:
 			return cmd
-		var want := Balance.aim_yaw_pitch(target.pos)
+		var want := PLBalance.aim_yaw_pitch(target.pos)
 		var d := want - Vector2(sim.station.yaw, sim.station.pitch)
 		cmd.aim = Vector2(clampf(d.x, -0.12, 0.12), clampf(d.y, -0.12, 0.12))
 		cmd.fire_held = true
@@ -50,7 +50,7 @@ var _pause_done := false
 
 
 func _init() -> void:
-	var main: Node = load("res://scenes/main.tscn").instantiate()
+	var main: Node = load("res://games/picket_line/scenes/main.tscn").instantiate()
 	root.add_child(main)
 	_main = main
 

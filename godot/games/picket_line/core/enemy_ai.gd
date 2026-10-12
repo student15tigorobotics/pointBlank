@@ -17,22 +17,22 @@ const FIRE_RANGE_PAD := 40.0
 
 
 static func step(e: Enemy, dt: float, ctx: Dictionary, rng: Rng, out: Array) -> void:
-	var def: Dictionary = Balance.ENEMY_DEFS[e.kind]
+	var def: Dictionary = PLBalance.ENEMY_DEFS[e.kind]
 	e.age += dt
 	e.wiggle += dt
 	var to_station := -e.pos
 	var dist := to_station.length()
 	var dir := to_station / maxf(dist, 0.001)
 	var side := Vector3(-dir.z, 0.0, dir.x)
-	if e.first_seen_age < 0.0 and dist <= Balance.SEEN_DIST:
+	if e.first_seen_age < 0.0 and dist <= PLBalance.SEEN_DIST:
 		e.first_seen_age = e.age
 	e.weak_offset = dir * float(def.weak_dist)
 	e.weak_open = _weak_open(e)
 	var speed: float = def.speed
 	match e.kind:
-		Balance.Kind.SCOUT, Balance.Kind.DRONE, Balance.Kind.BOMBER:
+		PLBalance.Kind.SCOUT, PLBalance.Kind.DRONE, PLBalance.Kind.BOMBER:
 			var weave := 0.0
-			if e.kind == Balance.Kind.DRONE:
+			if e.kind == PLBalance.Kind.DRONE:
 				weave = sin(e.wiggle * 2.2) * 9.0
 			e.vel = dir * speed + side * weave
 			e.pos += e.vel * dt
@@ -41,15 +41,15 @@ static func step(e: Enemy, dt: float, ctx: Dictionary, rng: Rng, out: Array) -> 
 				e.dead_timer = 0.0
 				out.append({"type": "crash", "enemy_id": e.id, "kind": e.kind,
 					"damage": float(def.crash), "pos": e.pos})
-		Balance.Kind.GUNSHIP, Balance.Kind.CARRIER, Balance.Kind.DREADNOUGHT:
+		PLBalance.Kind.GUNSHIP, PLBalance.Kind.CARRIER, PLBalance.Kind.DREADNOUGHT:
 			if dist > float(def.hold):
 				e.vel = dir * speed
 			else:
 				e.vel = side * 2.0 * sin(e.wiggle * 0.5)
 			e.pos += e.vel * dt
-			if e.kind == Balance.Kind.CARRIER:
+			if e.kind == PLBalance.Kind.CARRIER:
 				_carrier_launch(e, dt, out)
-			elif e.kind == Balance.Kind.DREADNOUGHT:
+			elif e.kind == PLBalance.Kind.DREADNOUGHT:
 				_dread_phase(e, out)
 			_fire(e, def, e.pos.length(), dt, ctx, out)
 
@@ -58,7 +58,7 @@ static func _carrier_launch(e: Enemy, dt: float, out: Array) -> void:
 	e.launch_timer -= dt
 	if e.launch_timer <= 0.0:
 		e.launch_timer = CARRIER_LAUNCH
-		out.append({"type": "launch", "kind": Balance.Kind.SCOUT, "count": LAUNCH_COUNT,
+		out.append({"type": "launch", "kind": PLBalance.Kind.SCOUT, "count": LAUNCH_COUNT,
 			"pos": e.pos, "group": e.group})
 
 
@@ -72,7 +72,7 @@ static func _dread_phase(e: Enemy, out: Array) -> void:
 	if target > e.phase:
 		e.phase = target
 		out.append({"type": "boss_phase", "enemy_id": e.id, "phase": target, "pos": e.pos})
-		out.append({"type": "launch", "kind": Balance.Kind.DRONE, "count": DREAD_LAUNCH,
+		out.append({"type": "launch", "kind": PLBalance.Kind.DRONE, "count": DREAD_LAUNCH,
 			"pos": e.pos, "group": e.group})
 
 
@@ -99,6 +99,6 @@ static func _fire(e: Enemy, def: Dictionary, dist: float, dt: float, ctx: Dictio
 static func _weak_open(e: Enemy) -> bool:
 	if e.weak_radius <= 0.0:
 		return false
-	if e.kind == Balance.Kind.CARRIER or e.kind == Balance.Kind.DREADNOUGHT:
+	if e.kind == PLBalance.Kind.CARRIER or e.kind == PLBalance.Kind.DREADNOUGHT:
 		return fposmod(e.age, WEAK_PERIOD) < WEAK_OPEN_TIME
 	return true

@@ -1,11 +1,30 @@
-# PointBlank Swarm
+# PointBlank Arcade
+
+One Godot 4.7 project (GDScript) holding several games. A start menu lists the games that run on the current
+platform, and more games can be added to it.
+
+| Game | Platform | What it is |
+|---|---|---|
+| **PointBlank Swarm** | Android standalone (HTC VIVE XR Elite), desktop preview | VR tower-defence / swarm shooter. Hold the line against thousands of polygon drones across twelve themed chapters. |
+| **Picket Line** | Desktop | First-person station shooter. Hold the picket line against an alien fleet. See `godot/games/picket_line/README.md`. |
+
+```
+godot --path godot                          # start menu
+godot --path godot -- --game=picket_line    # straight into a game
+godot --path godot -- --game=swarm --desktop
+```
+
+On Android the headset only has PointBlank Swarm, so it starts straight away with no flat menu (a 2D menu is not
+visible inside the headset).
+
+## PointBlank Swarm
 
 A VR tower-defence / swarm shooter for the **HTC VIVE XR Elite** (Android standalone, OpenXR).
 Built in Godot 4.7 with GDScript. Hold the line against thousands of polygon drones across twelve themed chapters.
 
 **Enjoying the game?** [♥ Support development via Stripe](https://buy.stripe.com/aFafZjeahanSe1f3CE9k400) — also reachable from the in-game OPTIONS tab.
 
-## Target
+### Target
 
 - Android APK on the XR Elite, deployed over adb. The headset is standalone, so there is no PC VR path.
 - Desktop preview runs from the same project (`--desktop`) so you can test without the headset.
@@ -31,12 +50,14 @@ Built in Godot 4.7 with GDScript. Hold the line against thousands of polygon dro
 
 ```
 godot/                   Godot project (open this folder)
-  core/                  Engine-free simulation and rules (GDScript)
-  game/                  Engine layer: rendering, input, UI, hub, story, boot
-  assets/                Third-party audio, manifest.json (URLs, checksums, licences), CREDITS.md
-  tests/core_checks.gd   Core rule tests (run headless)
-  scenes/main.tscn       Entry scene
-  project.godot          Renderer mobile, OpenXR enabled
+  launcher/              Start menu: lists the games for this platform and starts the one picked
+  core/                  PointBlank Swarm: engine-free simulation and rules (GDScript)
+  game/                  PointBlank Swarm: engine layer: rendering, input, UI, hub, story, boot
+  assets/                PointBlank Swarm audio, manifest.json (URLs, checksums, licences), CREDITS.md
+  tests/core_checks.gd   PointBlank Swarm core rule tests (run headless)
+  scenes/main.tscn       PointBlank Swarm scene (started by the launcher)
+  games/picket_line/     Picket Line: its own core, game, shaders, scenes, tests and audio generator
+  project.godot          Launcher is the entry scene; Forward+ on desktop, mobile renderer on Android, OpenXR enabled
   export_presets.cfg     Android preset: arm64, Gradle build, OpenXR, HTC vendor features
   openxr_action_map.tres OpenXR bindings, including the VIVE Focus 3 / XR Elite profile
 scripts/

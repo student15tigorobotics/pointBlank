@@ -4,7 +4,7 @@
 class_name Sectors
 extends RefCounted
 ## Six sectors with themed spawn pools. Bosses end sectors 2, 4 and 6 (indices 1, 3 and 5).
-## Pool entries are [Balance.Kind value, weight]. Kinds: 0 Scout, 1 Drone, 2 Gunship, 3 Bomber, 4 Carrier, 5 Dreadnought.
+## Pool entries are [PLBalance.Kind value, weight]. Kinds: 0 Scout, 1 Drone, 2 Gunship, 3 Bomber, 4 Carrier, 5 Dreadnought.
 
 const INFO := [
 	{"name": "Outer Picket", "pool": [[0, 4], [1, 3]], "waves": 7, "length": 75.0, "boss": -1, "boss_hp": 1.0},
@@ -27,7 +27,7 @@ static func info(index: int) -> Dictionary:
 ## Spawn events sorted by time: {t, kind, count, group, boss, hp_mult}. The boss, when present, is the last event.
 static func schedule(index: int, diff: int, rng: Rng) -> Array:
 	var sector: Dictionary = info(index)
-	var mult: float = float(Balance.difficulty(diff).spawn_mult)
+	var mult: float = float(PLBalance.difficulty(diff).spawn_mult)
 	var waves := int(sector.waves)
 	var length := float(sector.length)
 	var pool: Array = sector.pool
@@ -46,7 +46,7 @@ static func schedule(index: int, diff: int, rng: Rng) -> Array:
 
 
 static func _group(kind: int, t: float, group: int, mult: float, ramp: float, rng: Rng) -> Dictionary:
-	var def: Dictionary = Balance.ENEMY_DEFS[kind]
+	var def: Dictionary = PLBalance.ENEMY_DEFS[kind]
 	var spawn: Vector2i = def.spawn
 	var base := rng.range_i(spawn.x, spawn.y)
 	var count := maxi(1, roundi(float(base) * ramp * mult))

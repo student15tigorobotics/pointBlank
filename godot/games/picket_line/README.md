@@ -11,8 +11,11 @@ Combo chains, SNAP kills (shoot a fresh arrival within a second of it coming int
 
 Requires Godot 4.7 (standard build).
 
+Picket Line lives in the combined PointBlank Arcade project (`godot/`). Open the start menu and pick it, or go straight in:
+
 ```
-godot --path picket-line
+godot --path godot                           # start menu, choose Picket Line
+godot --path godot -- --game=picket_line     # straight into Picket Line
 ```
 
 | Action | Keyboard and mouse | Gamepad |
@@ -35,24 +38,24 @@ Music and sound effects are synthesised by `scripts/gen_audio.py` (numpy and ffm
 original and project-owned, so nothing is downloaded. Run it once before playing to hear sound:
 
 ```
-python3 picket-line/scripts/gen_audio.py
+python3 godot/games/picket_line/scripts/gen_audio.py
 ```
 
-Output goes to `picket-line/assets/audio/`, which is git-ignored. The game runs without it, silently.
+Output goes to `godot/games/picket_line/assets/audio/`, which is git-ignored. The game runs without it, silently.
 
 ## Tests
 
 The core rules are engine-free and tested headless:
 
 ```
-godot --headless --path picket-line -s res://tests/core_tests.gd
+godot --headless --path godot -s res://games/picket_line/tests/core_tests.gd
 ```
 
 A headless smoke run drives the real scene: a run starts, a scripted pilot flies sectors with the world, HUD and
 menus live, and the pause, options, upgrade and debrief screens are exercised.
 
 ```
-godot --headless --path picket-line -s res://tests/smoke_test.gd
+godot --headless --path godot -s res://games/picket_line/tests/smoke_test.gd
 ```
 
 ## Layout

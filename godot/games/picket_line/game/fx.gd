@@ -87,11 +87,11 @@ func spawn_event(ev: Dictionary, accent: Color) -> void:
 			var p2 := _pos(ev)
 			var kind := int(ev.get("kind", 0))
 			var size := 3.5
-			if bool(ev.get("boss", false)) or kind == Balance.Kind.DREADNOUGHT:
+			if bool(ev.get("boss", false)) or kind == PLBalance.Kind.DREADNOUGHT:
 				size = 30.0
-			elif kind == Balance.Kind.CARRIER:
+			elif kind == PLBalance.Kind.CARRIER:
 				size = 14.0
-			elif kind == Balance.Kind.GUNSHIP or kind == Balance.Kind.BOMBER:
+			elif kind == PLBalance.Kind.GUNSHIP or kind == PLBalance.Kind.BOMBER:
 				size = 7.0
 			explode(p2, size, accent)
 			flash_at(p2, accent.lightened(0.3), 6.0, size * 4.0)
@@ -217,15 +217,15 @@ func render_projectiles(player: Array, shells: Array) -> void:
 		var prev: Vector3 = p.prev
 		var weapon: int = int(p.weapon)
 		match weapon:
-			Balance.Weapon.PULSE:
+			PLBalance.Weapon.PULSE:
 				_streak(pos - dir * 12.0, pos, 0.16, _mat_pulse, cam_pos)
-			Balance.Weapon.LANCE:
+			PLBalance.Weapon.LANCE:
 				_streak(prev, pos, 1.3, _mat_lance_halo, cam_pos)
 				_streak(prev, pos, 0.35, _mat_lance_core, cam_pos)
-			Balance.Weapon.FLAK:
+			PLBalance.Weapon.FLAK:
 				_orb(pos, 0.7, _mat_flak)
 				_orb(pos, 1.5 + 0.3 * sin(_time * 40.0 + pos.x), _mat_halo)
-			Balance.Weapon.SWARM:
+			PLBalance.Weapon.SWARM:
 				_streak(pos - dir * 2.2, pos, 0.28, _mat_swarm, cam_pos)
 				_orb(pos - dir * 2.6, 0.9, _mat_smoke)
 				_orb(pos - dir * 4.6, 1.5, _mat_smoke)
@@ -345,7 +345,7 @@ func _ensure_built() -> void:
 
 	for i in BEAM_POOL:
 		var mat := ShaderMaterial.new()
-		mat.shader = load("res://shaders/beam.gdshader")
+		mat.shader = load("res://games/picket_line/shaders/beam.gdshader")
 		mat.set_shader_parameter("beam_col", ENEMY_BEAM)
 		mat.set_shader_parameter("intensity", 3.2)
 		mat.set_shader_parameter("alpha", 0.0)
@@ -393,7 +393,7 @@ func _build_projectile_materials() -> void:
 
 func _beam_material(c: Color, intensity: float) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
-	m.shader = load("res://shaders/beam.gdshader")
+	m.shader = load("res://games/picket_line/shaders/beam.gdshader")
 	m.set_shader_parameter("beam_col", c)
 	m.set_shader_parameter("intensity", intensity)
 	m.set_shader_parameter("alpha", 1.0)
@@ -521,14 +521,14 @@ func _deactivate(b: Boom) -> void:
 func _muzzle_flash(weapon: int) -> void:
 	var tip := _camera_point_local(MUZZLE_LOCAL)
 	match weapon:
-		Balance.Weapon.LANCE:
+		PLBalance.Weapon.LANCE:
 			flash_at(tip, Color(0.4, 0.95, 1.0, 1.0), 6.0, 12.0)
 			_boom(tip, 0.6, Color(0.5, 1.0, 1.0, 1.0), 0.15, 1.2, false, false)
-		Balance.Weapon.PULSE:
+		PLBalance.Weapon.PULSE:
 			_boom(tip, 0.25, Color(0.8, 1.0, 0.35, 1.0), 0.1, 0.8, false, false)
-		Balance.Weapon.FLAK:
+		PLBalance.Weapon.FLAK:
 			_boom(tip, 0.35, Color(1.0, 0.55, 0.2, 1.0), 0.25, 1.0, true, false)
-		Balance.Weapon.SWARM:
+		PLBalance.Weapon.SWARM:
 			_boom(tip, 0.4, Color(0.9, 0.9, 0.95, 1.0), 0.3, 0.5, false, true)
 		_:
 			pass

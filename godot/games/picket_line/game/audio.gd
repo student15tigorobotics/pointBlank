@@ -6,7 +6,7 @@ extends Node
 ## Music with crossfades, and a pool of one-shot players for sound effects.
 ## Files come from assets/audio (written by scripts/gen_audio.py). A missing file is skipped with one warning.
 
-const AUDIO_DIR := "res://assets/audio/"
+const AUDIO_DIR := "res://games/picket_line/assets/audio/"
 const POOL_SIZE := 16
 const FADE_TIME := 1.6
 const SILENT_DB := -80.0
@@ -109,7 +109,7 @@ func handle_events(events: Array) -> void:
 			"enemy_fire":
 				play_sfx("enemy_beam" if String(ev.mode) == "beam" else "enemy_shell", _jitter(0.04), 0.6)
 			"telegraph":
-				if int(ev.kind) == Balance.Kind.GUNSHIP or int(ev.kind) == Balance.Kind.DREADNOUGHT:
+				if int(ev.kind) == PLBalance.Kind.GUNSHIP or int(ev.kind) == PLBalance.Kind.DREADNOUGHT:
 					play_sfx("lock_tone", 1.0, 0.35)
 			"player_hit":
 				_hit_sound(ev)
@@ -139,22 +139,22 @@ func ui(sfx: String) -> void:
 
 func _shot_sound(weapon: int, ev: Dictionary) -> void:
 	match weapon:
-		Balance.Weapon.PULSE:
+		PLBalance.Weapon.PULSE:
 			play_sfx("fire_pulse", _jitter(0.05), 0.45)
-		Balance.Weapon.LANCE:
+		PLBalance.Weapon.LANCE:
 			play_sfx("fire_lance", 1.0, 0.9)
-		Balance.Weapon.FLAK:
+		PLBalance.Weapon.FLAK:
 			play_sfx("fire_flak", 1.0, 0.8)
-		Balance.Weapon.SWARM:
+		PLBalance.Weapon.SWARM:
 			play_sfx("fire_swarm", _jitter(0.03), 0.7)
 
 
 func _kill_sound(ev: Dictionary) -> void:
 	if bool(ev.boss):
 		play_sfx("boss_die", 1.0, 1.0)
-	elif int(ev.kind) == Balance.Kind.CARRIER or int(ev.kind) == Balance.Kind.DREADNOUGHT:
+	elif int(ev.kind) == PLBalance.Kind.CARRIER or int(ev.kind) == PLBalance.Kind.DREADNOUGHT:
 		play_sfx("kill_big", 1.0, 0.9)
-	elif int(ev.kind) == Balance.Kind.GUNSHIP or int(ev.kind) == Balance.Kind.BOMBER:
+	elif int(ev.kind) == PLBalance.Kind.GUNSHIP or int(ev.kind) == PLBalance.Kind.BOMBER:
 		play_sfx("kill_big", _jitter(0.05), 0.55)
 	else:
 		play_sfx("kill_small", _jitter(0.08), 0.6)

@@ -1,7 +1,7 @@
 # Copyright (C) 2026 tigo.robotics@gmail.com
 # This file is part of Picket Line.
 # Picket Line is free software under GPL-3.0-or-later. See LICENSE in the repository root.
-class_name Projectiles
+class_name PLProjectiles
 extends RefCounted
 ## Player shots (swept against enemy spheres, weak core first) and enemy shells.
 ## A shell hits only if the rail is still within BEAM_RADIUS of the point it was aimed at.
@@ -12,7 +12,7 @@ var _next_id := 1
 
 
 func fire_player(weapon: int, origin: Vector3, dir: Vector3, damage: float, extra: Dictionary) -> int:
-	var def: Dictionary = Balance.WEAPON_DEFS[weapon]
+	var def: Dictionary = PLBalance.WEAPON_DEFS[weapon]
 	var id := _next_id
 	_next_id += 1
 	_shots.append({
@@ -82,7 +82,7 @@ func _step_shot(p: Dictionary, dt: float, enemies: Array, events: Array) -> bool
 	p.pos = p.prev + p.dir * travel
 	p.travelled = float(p.travelled) + travel
 	var hit := _first_hit(p.prev, p.pos, enemies)
-	if int(p.weapon) == Balance.Weapon.FLAK:
+	if int(p.weapon) == PLBalance.Weapon.FLAK:
 		return _flak(p, hit, dt, enemies, events)
 	if not hit.is_empty():
 		_direct_hit(p, hit, events)
@@ -122,7 +122,7 @@ func _detonate(p: Dictionary, at: Vector3, enemies: Array, events: Array) -> voi
 		var d := maxf(0.0, at.distance_to(e.pos) - e.radius)
 		if d > area:
 			continue
-		var falloff := clampf(1.0 - d / area, Balance.FLAK_MIN_FALLOFF, 1.0)
+		var falloff := clampf(1.0 - d / area, PLBalance.FLAK_MIN_FALLOFF, 1.0)
 		e.hp -= base * falloff
 		e.last_crit = false
 		if d < nearest_d:
@@ -137,7 +137,7 @@ func _detonate(p: Dictionary, at: Vector3, enemies: Array, events: Array) -> voi
 func _direct_hit(p: Dictionary, hit: Dictionary, events: Array) -> void:
 	var e: Enemy = hit.enemy
 	var crit: bool = hit.crit
-	var dmg: float = float(p.damage) * (Balance.WEAK_DAMAGE if crit else 1.0)
+	var dmg: float = float(p.damage) * (PLBalance.WEAK_DAMAGE if crit else 1.0)
 	e.hp -= dmg
 	e.last_crit = crit
 	events.append({"type": "hit", "enemy_id": e.id, "damage": dmg, "crit": crit,
@@ -188,7 +188,7 @@ func _seg_sphere(a: Vector3, b: Vector3, c: Vector3, r: float) -> float:
 
 func _near_any(pos: Vector3, enemies: Array) -> bool:
 	for e: Enemy in enemies:
-		if e.alive and pos.distance_to(e.pos) <= e.radius + Balance.PROXIMITY:
+		if e.alive and pos.distance_to(e.pos) <= e.radius + PLBalance.PROXIMITY:
 			return true
 	return false
 
@@ -207,7 +207,7 @@ func _step_shell(s: Dictionary, dt: float, station: Station, events: Array) -> b
 	if float(s.t) < 1.0:
 		return false
 	var rail := station.rail_point()
-	if Vector2(rail.x, rail.y).distance_to(Vector2(at.x, at.y)) <= Balance.BEAM_RADIUS:
+	if Vector2(rail.x, rail.y).distance_to(Vector2(at.x, at.y)) <= PLBalance.BEAM_RADIUS:
 		var r := station.take_damage(float(s.damage), "shell")
 		events.append({"type": "player_hit", "kind": "shell", "damage": float(s.damage),
 			"applied_hull": r.applied_hull, "applied_shield": r.applied_shield, "blocked": r.blocked, "pos": at})

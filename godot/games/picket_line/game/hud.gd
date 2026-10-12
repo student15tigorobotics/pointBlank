@@ -228,7 +228,7 @@ func handle_events(events: Array) -> void:
 				_banner_try("WARNING: BOSS INCOMING", C_RED, 2.5, 5)
 			"boss_spawn":
 				var kind: int = int(ev.get("kind", 0))
-				var bname: String = String(Balance.ENEMY_DEFS[kind]["name"]).to_upper()
+				var bname: String = String(PLBalance.ENEMY_DEFS[kind]["name"]).to_upper()
 				_banner_try(bname, Color(1.0, 0.45, 0.3), 2.5, 4)
 			"boss_phase":
 				_banner_try("PHASE %d" % int(ev.get("phase", 1)), C_ORANGE, 2.0, 4)
@@ -488,7 +488,7 @@ func _refresh_texts(sim: Sim) -> void:
 	if v != _energy_v:
 		_energy_v = v
 		_energy_txt = str(v)
-	v = roundi(st.heat / Balance.HEAT_MAX * 100.0)
+	v = roundi(st.heat / PLBalance.HEAT_MAX * 100.0)
 	if v != _heat_v:
 		_heat_v = v
 		_heat_txt = "%d%%" % v
@@ -529,7 +529,7 @@ func _refresh_boss() -> void:
 		return
 	if _boss.kind != _boss_kind:
 		_boss_kind = _boss.kind
-		_boss_title = String(Balance.ENEMY_DEFS[_boss.kind]["name"]).to_upper()
+		_boss_title = String(PLBalance.ENEMY_DEFS[_boss.kind]["name"]).to_upper()
 	var pct: int = roundi(_boss.hp / maxf(_boss.max_hp, 1.0) * 100.0)
 	if pct != _boss_v:
 		_boss_v = pct
@@ -598,7 +598,7 @@ func _bar_block(r: Rect2, label: String, value: String, frac: float, col: Color)
 
 func _draw_crosshair(c: Vector2, st: Station, wpn: Weapons) -> void:
 	var s: float = _s
-	var heat_f: float = clampf(st.heat / Balance.HEAT_MAX, 0.0, 1.0)
+	var heat_f: float = clampf(st.heat / PLBalance.HEAT_MAX, 0.0, 1.0)
 	var gap: float = (5.0 + 12.0 * heat_f + 10.0 * _kick) * s
 	if st.focusing:
 		gap *= 0.6
@@ -610,8 +610,8 @@ func _draw_crosshair(c: Vector2, st: Station, wpn: Weapons) -> void:
 	_tick(c, Vector2(-1.0, 0.0), gap, len_px, th, col)
 	_tick(c, Vector2(0.0, 1.0), gap, len_px, th, col)
 	_tick(c, Vector2(0.0, -1.0), gap, len_px, th, col)
-	if wpn.charging and wpn.current == Balance.Weapon.LANCE:
-		var cdef: Dictionary = Balance.WEAPON_DEFS[Balance.Weapon.LANCE]
+	if wpn.charging and wpn.current == PLBalance.Weapon.LANCE:
+		var cdef: Dictionary = PLBalance.WEAPON_DEFS[PLBalance.Weapon.LANCE]
 		var cmax: float = maxf(float(cdef["charge_max"]) * float(wpn.mods["charge_mult"]), 0.001)
 		var t01: float = clampf(wpn.charge_t / cmax, 0.0, 1.0)
 		if t01 > 0.01:
@@ -763,19 +763,19 @@ func _draw_threats() -> void:
 
 
 func _draw_status(st: Station) -> void:
-	var hull_f: float = clampf(st.hull / Balance.STATION_HULL, 0.0, 1.0)
+	var hull_f: float = clampf(st.hull / PLBalance.STATION_HULL, 0.0, 1.0)
 	var hull_col: Color = C_HULL
 	if hull_f < 0.3 and int(_pulse * 5.0) % 2 == 0:
 		hull_col = Color(1.0, 0.55, 0.5)
 	_bar_block(_r_hull, "HULL", _hull_txt, hull_f, hull_col)
 	_bar_block(_r_shield, "SHIELD", _shield_txt, st.shield / maxf(st.shield_max, 1.0), C_SHIELD)
-	_bar_block(_r_energy, "ENERGY", _energy_txt, st.energy / Balance.ENERGY_MAX, C_YELLOW)
+	_bar_block(_r_energy, "ENERGY", _energy_txt, st.energy / PLBalance.ENERGY_MAX, C_YELLOW)
 	var heat_col: Color = C_ORANGE
 	var heat_label: String = "HEAT"
 	if st.overheated:
 		heat_label = "OVERHEAT"
 		heat_col = C_RED if sin(_pulse * 14.0) > 0.0 else Color(0.45, 0.1, 0.1)
-	_bar_block(_r_heat, heat_label, _heat_txt, st.heat / Balance.HEAT_MAX, heat_col)
+	_bar_block(_r_heat, heat_label, _heat_txt, st.heat / PLBalance.HEAT_MAX, heat_col)
 	var focus_a: float = 1.0 if st.focus > 1.0 else 0.35
 	var focus_col := Color(C_VIOLET.r, C_VIOLET.g, C_VIOLET.b, focus_a)
 	_bar_block(_r_focus, "FOCUS", _focus_txt, st.focus / maxf(st.focus_max, 1.0), focus_col)
@@ -787,7 +787,7 @@ func _draw_weapons(st: Station, wpn: Weapons) -> void:
 	for i in 4:
 		var x: float = _r_strip.position.x + float(i) * (_slot_w + _slot_gap)
 		var rect := Rect2(x, yy, _slot_w, _slot_h)
-		var def: Dictionary = Balance.WEAPON_DEFS[i]
+		var def: Dictionary = PLBalance.WEAPON_DEFS[i]
 		var on: bool = wpn.current == i
 		draw_rect(rect, C_SLOT_ON if on else C_SLOT_BG, true)
 		var reload: float = float(wpn.mods["reload_mult"])
@@ -795,20 +795,20 @@ func _draw_weapons(st: Station, wpn: Weapons) -> void:
 		var frac: float = clampf(float(wpn.cooldown[i]) / cd_max, 0.0, 1.0)
 		if frac > 0.0:
 			draw_rect(Rect2(x, yy, _slot_w, _slot_h * frac), C_SWEEP, true)
-		if i == Balance.Weapon.LANCE and wpn.charging:
+		if i == PLBalance.Weapon.LANCE and wpn.charging:
 			var cmax: float = maxf(float(def["charge_max"]) * float(wpn.mods["charge_mult"]), 0.001)
 			var t01: float = clampf(wpn.charge_t / cmax, 0.0, 1.0)
 			draw_rect(Rect2(x, yy + _slot_h * (1.0 - t01), _slot_w, _slot_h * t01),
 				Color(C_YELLOW.r, C_YELLOW.g, C_YELLOW.b, 0.35), true)
 		draw_rect(rect, C_CYAN if on else C_EDGE, false, (2.0 * s) if on else 1.0)
 		var ready: bool = st.energy >= float(def["energy"])
-		if i == Balance.Weapon.SWARM:
+		if i == PLBalance.Weapon.SWARM:
 			ready = ready and wpn.pods >= 1.0
 		var name_col: Color = C_TEXT if ready else C_DIM
 		_text(Vector2(x + 6.0 * s, yy + 15.0 * s), KEYS[i], 12.0, C_CYAN if on else C_DIM)
 		_text(Vector2(x, yy + _slot_h - 8.0 * s), String(def["name"]), 13.0, name_col,
 			HORIZONTAL_ALIGNMENT_CENTER, _slot_w)
-		if i == Balance.Weapon.SWARM:
+		if i == PLBalance.Weapon.SWARM:
 			var mx: int = wpn.max_pods()
 			var have: int = int(floor(wpn.pods))
 			_text(Vector2(x, yy + 15.0 * s), _pods_txt, 11.0, C_TEXT, HORIZONTAL_ALIGNMENT_RIGHT, _slot_w - 6.0 * s)
@@ -830,7 +830,7 @@ func _draw_top(sim: Sim) -> void:
 	_text(Vector2(m, m + 12.0 * s), "SCORE", 11.0, C_DIM, HORIZONTAL_ALIGNMENT_RIGHT, rw)
 	_text(Vector2(m, m + 46.0 * s), _score_txt, 34.0, C_TEXT, HORIZONTAL_ALIGNMENT_RIGHT, rw)
 	if sim.combo > 0 and sim.combo_left() > 0.0:
-		var left: float = sim.combo_left() / Balance.COMBO_WINDOW
+		var left: float = sim.combo_left() / PLBalance.COMBO_WINDOW
 		var mult_col: Color = C_GOLD if sim.combo_mult >= 2 else C_DIM
 		_text(Vector2(m, m + 72.0 * s), _combo_txt, 14.0, mult_col, HORIZONTAL_ALIGNMENT_RIGHT, rw)
 		_bar(Rect2(w - m - 150.0 * s, m + 80.0 * s, 150.0 * s, 5.0 * s), left, C_ORANGE)
@@ -851,7 +851,7 @@ func _draw_boss() -> void:
 	_text(Vector2(bx, by - 6.0 * s), _boss_txt, 14.0, C_TEXT, HORIZONTAL_ALIGNMENT_RIGHT, bw)
 	var bar := Rect2(bx, by, bw, 12.0 * s)
 	_bar(bar, frac, Color(1.0, 0.35, 0.3))
-	if b.kind == Balance.Kind.DREADNOUGHT:
+	if b.kind == PLBalance.Kind.DREADNOUGHT:
 		for th in EnemyAI.PHASE_THRESHOLDS:
 			var tx: float = bx + bw * float(th)
 			draw_line(Vector2(tx, by - 2.0 * s), Vector2(tx, by + 14.0 * s), C_TEXT, 2.0 * s, true)

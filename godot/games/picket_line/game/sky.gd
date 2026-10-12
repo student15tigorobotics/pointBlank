@@ -36,7 +36,7 @@ func build() -> void:
 	_built = true
 
 	_sky_mat = ShaderMaterial.new()
-	_sky_mat.shader = load("res://shaders/sky.gdshader")
+	_sky_mat.shader = load("res://games/picket_line/shaders/sky.gdshader")
 	var dome := MeshInstance3D.new()
 	dome.name = "Dome"
 	var dome_mesh := SphereMesh.new()
@@ -51,7 +51,7 @@ func build() -> void:
 	add_child(dome)
 
 	_planet_mat = ShaderMaterial.new()
-	_planet_mat.shader = load("res://shaders/planet.gdshader")
+	_planet_mat.shader = load("res://games/picket_line/shaders/planet.gdshader")
 	_planet = MeshInstance3D.new()
 	_planet.name = "Planet"
 	var planet_mesh := SphereMesh.new()
@@ -67,7 +67,7 @@ func build() -> void:
 	add_child(_planet)
 
 	_ring_mat = ShaderMaterial.new()
-	_ring_mat.shader = load("res://shaders/planet.gdshader")
+	_ring_mat.shader = load("res://games/picket_line/shaders/planet.gdshader")
 	_ring_mat.set_shader_parameter("ring_mode", true)
 	_ring_mat.set_shader_parameter("ring_inner", RING_INNER_FRAC)
 	_ring = MeshInstance3D.new()

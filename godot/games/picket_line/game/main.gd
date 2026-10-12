@@ -7,6 +7,9 @@ extends Node3D
 
 enum State { TITLE, BRIEFING, PLAY, PAUSED, UPGRADE, SECTOR_RESULT, DEBRIEF }
 
+## Emitted when the player asks to go back to the game list. The launcher frees this game on receipt.
+signal menu_requested
+
 const MISSIONS := [
 	"Hold the picket line. Pick off the scout screen before it reaches the hull.",
 	"The debris field hides gunships. Break their guns first, then the carrier.",
@@ -21,7 +24,7 @@ var scores: Array = []
 var run: Run = null
 var sim: Sim = null
 var state := State.TITLE
-var difficulty := Balance.Diff.ENSIGN
+var difficulty := PLBalance.Diff.ENSIGN
 var world: World
 var hud: Hud
 var menus: Menus
@@ -165,7 +168,7 @@ func _show_title() -> void:
 	world.clear_battlefield()
 	_current_screen = "title"
 	var best := int(scores[0].score) if not scores.is_empty() else 0
-	menus.show_screen("title", {"difficulty": String(Balance.difficulty(difficulty).name), "best": best})
+	menus.show_screen("title", {"difficulty": String(PLBalance.difficulty(difficulty).name), "best": best})
 	audio.music("menu")
 
 
@@ -175,7 +178,7 @@ func _show_briefing() -> void:
 	var info := Sectors.info(run.sector)
 	var boss_name := ""
 	if int(info.boss) >= 0:
-		boss_name = String(Balance.ENEMY_DEFS[int(info.boss)].name)
+		boss_name = String(PLBalance.ENEMY_DEFS[int(info.boss)].name)
 	var owned_names: Array = []
 	for id in run.owned:
 		owned_names.append(_upgrade_name(String(id)))
@@ -260,6 +263,8 @@ func _on_action(id: String, payload: Variant) -> void:
 			_options_from_pause = state == State.PAUSED
 			_current_screen = "options"
 			menus.show_screen("options", {"settings": settings})
+		"games":
+			menu_requested.emit()
 		"quit":
 			get_tree().quit()
 		"begin":
