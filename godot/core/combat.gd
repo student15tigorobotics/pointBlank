@@ -69,10 +69,47 @@ static func nearest_in_range(swarm: Swarm, x: float, z: float, reach: float) -> 
 	return found
 
 
-## Appends every alive enemy within XZ radius of (x, z) to into, in ascending slot order.
-## Returns the array with hits appended. PackedInt32Array is passed by value, so callers must
-## assign the result: buf = Combat.collect(..., buf).
-static func collect(swarm: Swarm, x: float, z: float, radius: float, into: PackedInt32Array) -> PackedInt32Array:
+## Caller-owned index buffer for Combat.collect. GDScript passes a PackedInt32Array by value, so a
+## write made inside a static function lands on a private copy and the caller never sees it. This
+## object holds the array instead; the buffer's own methods write to it in place. Keep one per caller
+## as a member.
+class IndexBuffer extends RefCounted:
+	var items: PackedInt32Array = PackedInt32Array()
+	var count: int = 0
+
+	## Grows items to at least `slots` entries. Never shrinks.
+	func reserve(slots: int) -> void:
+		if items.size() < slots:
+			items.resize(slots)
+
+	func clear() -> void:
+		count = 0
+
+	## Appends one index. reserve() must have made room first.
+	func push(i: int) -> void:
+		items[count] = i
+		count += 1
+
+	## Replaces the contents with the first n entries of src. With ordered, they come back sorted
+	## ascending: entries past n are first set to `slots`, which sorts after every real index, so one
+	## native sort orders just the first n. Without it the copy keeps src's order and costs no sort.
+	func load_from(src: PackedInt32Array, n: int, slots: int, ordered: bool) -> void:
+		reserve(slots)
+		if ordered:
+			items.fill(slots)
+		for k in n:
+			items[k] = src[k]
+		count = n
+		if ordered and n > 1:
+			items.sort()
+
+
+## Writes every alive enemy within XZ radius of (x, z) into `into`, in ascending slot order, and
+## returns how many. Replaces the previous contents. into.items must hold at least swarm.capacity
+## entries, so call into.reserve(swarm.capacity) before the first collect. Allocates nothing.
+static func collect(swarm: Swarm, x: float, z: float, radius: float, into: IndexBuffer) -> int:
+	assert(into.items.size() >= swarm.capacity)
+	into.clear()
 	var r2: float = radius * radius
 	var alive: PackedByteArray = swarm.alive
 	var xs: PackedFloat32Array = swarm.x
@@ -84,5 +121,6 @@ static func collect(swarm: Swarm, x: float, z: float, radius: float, into: Packe
 		var dx: float = xs[i] - x
 		var dz: float = zs[i] - z
 		if dx * dx + dz * dz <= r2:
-			into.append(i)
-	return into
+			into.push(i)
+	return into.count
+

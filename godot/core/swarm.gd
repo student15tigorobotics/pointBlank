@@ -62,7 +62,6 @@ var _cum: PackedFloat32Array
 var _last_seg: int = 0
 var _radius: PackedFloat32Array = PackedFloat32Array()   # per EnemyKind body radius
 var _core_damage: PackedInt32Array = PackedInt32Array()  # per EnemyKind core damage on leak
-var _sep_buf: PackedInt32Array = PackedInt32Array()      # neighbour scratch for _separate
 
 
 func _init(p: BattlePath, cap: int) -> void:
@@ -208,9 +207,8 @@ func step(dt: float, economy: BattleEconomy, grid: SpatialGrid = null) -> void:
 func _separate(i: int, advance: float, dt: float, grid: SpatialGrid) -> float:
 	var ri: float = _radius[kind[i]]
 	var reach: float = ri + 0.22       # covers the largest neighbour radius (Titan)
-	_sep_buf.clear()
-	_sep_buf = grid.collect(x[i], z[i], reach, _sep_buf)
-	if _sep_buf.size() <= 1:
+	var found: int = grid.collect(x[i], z[i], reach)   # neighbours land in grid.hits; nothing below collects again
+	if found <= 1:
 		return advance
 	var hd: float = heading[i]
 	var hx: float = sin(hd)
@@ -218,8 +216,8 @@ func _separate(i: int, advance: float, dt: float, grid: SpatialGrid) -> float:
 	var push: float = 0.0
 	var blocked: bool = false
 	var checked: int = 0
-	for k in _sep_buf.size():
-		var j: int = _sep_buf[k]
+	for k in found:
+		var j: int = grid.hits[k]
 		if j == i or alive[j] == 0:
 			continue
 		var ddx: float = x[j] - x[i]

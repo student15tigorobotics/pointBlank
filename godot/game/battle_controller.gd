@@ -50,7 +50,7 @@ var weapons_left: WeaponSystem       # independent cooldown for the dual-wield l
 var grid: SpatialGrid
 var projectiles: Projectiles
 var allies: AllySquad
-var profile_has_squad: bool = false  # Lemming Squad unlock gates the A/B lemming tool
+var profile_has_squad: bool = false  # Ally Squad unlock gates the A/B lemming tool
 var benchmark: bool = false
 var outcome: int = Outcome.RUNNING
 var benchmark_result: Dictionary = {}     # {alive, visible, tier, stop} once the benchmark has ended
@@ -192,15 +192,14 @@ func _nuke_lemmings() -> void:
 		if allies.alive[i] == 0:
 			continue
 		var at := Vector3(allies.x[i], 0.04, allies.z[i])
-		_impacts_scratch.clear()
-		_impacts_scratch = grid.collect(allies.x[i], allies.z[i], LEMMING_NUKE_R, _impacts_scratch)
-		for k in _impacts_scratch.size():
-			Combat.hit(swarm, _impacts_scratch[k], LEMMING_NUKE_DMG, eco)
+		var found: int = grid.collect(allies.x[i], allies.z[i], LEMMING_NUKE_R)
+		for k in found:
+			Combat.hit_area(swarm, grid.hits[k], LEMMING_NUKE_DMG, eco)
 		view.explosion(at, 1.2)
 		allies.alive[i] = 0
 	allies.alive_count = 0
 	Audio.play("explosion", -2.0, 0.15)
-	view.float_text("LEMMINGS DETONATED", Vector3(0.0, CLEAR_TEXT_HEIGHT, 0.0), Ui.WARN)
+	view.float_text("ALLIES DETONATED", Vector3(0.0, CLEAR_TEXT_HEIGHT, 0.0), Ui.WARN)
 
 
 func tower_choice() -> int:
@@ -279,7 +278,7 @@ func tick(dt: float, controls: Controls, ui_over: bool, eye: Vector3, forward: V
 			var made: int = allies.spawn_at(view.path.length - 0.12, 3)
 			if made > 0:
 				_lemming_cd = LEMMING_CD
-				view.float_text("LEMMINGS x%d" % made, Vector3(0.0, CLEAR_TEXT_HEIGHT, 0.0), Ui.ACCENT)
+				view.float_text("ALLY SQUAD x%d" % made, Vector3(0.0, CLEAR_TEXT_HEIGHT, 0.0), Ui.ACCENT)
 				Audio.play("tower.place", -2.0, 0.1)
 		if controls.lemming_explode and allies.alive_count > 0:
 			_nuke_lemmings()
@@ -472,21 +471,18 @@ func _saber_slash(o: Vector3, d: Vector3, ws: WeaponSystem, dt: float) -> void:
 	var touched: bool = false
 	for si in _saber_samples.size():
 		var p: Vector3 = o + d * (blade * _saber_samples[si])
-		_impacts_scratch.clear()
-		_impacts_scratch = grid.collect(p.x, p.z, reach, _impacts_scratch)
-		for k in _impacts_scratch.size():
-			var e: int = _impacts_scratch[k]
+		var found: int = grid.collect(p.x, p.z, reach)
+		for k in found:
+			var e: int = grid.hits[k]
 			var ey: float = swarm.y[e] - p.y
 			if absf(ey) > 0.12:
 				continue
-			Combat.hit(swarm, e, dps * dt, eco)
+			Combat.hit_area(swarm, e, dps * dt, eco)
 			touched = true
 	if touched and _saber_sfx_cd <= 0.0:
 		_saber_sfx_cd = 0.18
 		Audio.play("shot.arc", -8.0, 0.2)
 
-
-var _impacts_scratch: PackedInt32Array = PackedInt32Array()
 
 
 ## SFX key for a weapon discharge. Nova shares the explosion sample; it is a burst weapon.

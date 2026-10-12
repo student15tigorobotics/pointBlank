@@ -18,7 +18,7 @@ var towers: Array = []
 var damage_mult: float = 1.0
 
 var _next_id: int = 1
-var _scratch: PackedInt32Array = PackedInt32Array()
+var _scratch: Combat.IndexBuffer = Combat.IndexBuffer.new()   # enemies from the last _collect: _scratch.items[0 .. count - 1]
 # Chain-hit set as stamps: _marks[i] == _stamp means enemy i was hit in the current chain.
 var _marks: PackedInt32Array = PackedInt32Array()
 var _stamp: int = 0
@@ -151,8 +151,9 @@ func tick(dt: float, swarm: Swarm, economy: BattleEconomy, shots: ShotBuffer, gr
 func _suck(t: TowerInstance, dt: float, swarm: Swarm, grid: SpatialGrid) -> void:
 	var k: int = t.kind
 	var pull: float = _damage[k] * pow(Balance.TOWER_UPGRADE_DAMAGE, float(t.level - 1)) * dt
-	_collect(swarm, t.x, t.z, _range[k], grid)
-	for i in _scratch:
+	_collect(swarm, t.x, t.z, _range[k], grid, false)
+	for j in _scratch.count:
+		var i: int = _scratch.items[j]
 		if not swarm.alive[i]:
 			continue
 		swarm.dist[i] = maxf(swarm.dist[i] - pull, 0.02)
@@ -162,10 +163,10 @@ func _suck(t: TowerInstance, dt: float, swarm: Swarm, grid: SpatialGrid) -> void
 func _fire_vortex(t: TowerInstance, swarm: Swarm, economy: BattleEconomy, shots: ShotBuffer, grid: SpatialGrid) -> void:
 	var k: int = t.kind
 	shots.add(_top(t), _top(t), _range[k], ShotStyle.Style.PULSE)
-	_collect(swarm, t.x, t.z, _range[k], grid)
+	_collect(swarm, t.x, t.z, _range[k], grid, true)
 	var chip: float = 4.0 * damage_mult * pow(Balance.TOWER_UPGRADE_DAMAGE, float(t.level - 1))
-	for i in _scratch:
-		Combat.hit_area(swarm, i, chip, economy)
+	for j in _scratch.count:
+		Combat.hit_area(swarm, _scratch.items[j], chip, economy)
 
 
 # Turret: nearest enemy in range, one bolt.
@@ -180,10 +181,11 @@ func _fire_single(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEco
 
 # Sniper: strongest current hp in range. Equal hp: the lowest index wins, as in C# (strict >).
 func _fire_strongest(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEconomy, shots: ShotBuffer, grid: SpatialGrid) -> void:
-	_collect(swarm, t.x, t.z, _range[t.kind], grid)
+	_collect(swarm, t.x, t.z, _range[t.kind], grid, false)
 	var best: int = -1
 	var best_hp: float = -1.0
-	for i in _scratch:
+	for j in _scratch.count:
+		var i: int = _scratch.items[j]
 		if not swarm.alive[i]:
 			continue
 		var hp: float = swarm.hp[i]
@@ -208,8 +210,9 @@ func _fire_shell(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEcon
 	var tz: float = swarm.z[target]
 	var splash: float = _splash[k]
 	shots.add(_top(t), Vector3(tx, 0.0, tz), splash, ShotStyle.Style.SHELL)
-	_collect(swarm, tx, tz, splash, grid)
-	for i in _scratch:
+	_collect(swarm, tx, tz, splash, grid, true)
+	for j in _scratch.count:
+		var i: int = _scratch.items[j]
 		var dx: float = swarm.x[i] - tx
 		var dz: float = swarm.z[i] - tz
 		var falloff: float = 1.0 - 0.5 * sqrt(dx * dx + dz * dz) / splash
@@ -247,24 +250,25 @@ func _fire_pulse(t: TowerInstance, dmg: float, swarm: Swarm, economy: BattleEcon
 	var reach: float = _range[k]
 	var anchor: Vector3 = Vector3(t.x, 0.01, t.z)
 	shots.add(anchor, anchor, reach, ShotStyle.Style.PULSE)
-	_collect(swarm, t.x, t.z, reach, grid)
+	_collect(swarm, t.x, t.z, reach, grid, true)
 	var slow_mul: float = _slow[k]
 	var slow_secs: float = _slow_seconds[k]
-	for i in _scratch:
+	for j in _scratch.count:
+		var i: int = _scratch.items[j]
 		swarm.slow(i, slow_mul, slow_secs)
 		Combat.hit_area(swarm, i, dmg, economy)
 
 
-## Fills _scratch with alive enemy indices within radius, ascending (same order as C# Combat.Collect).
-## With a grid the result is sorted so hit order matches the brute-force path.
-## PackedArrays are passed by value, so the array returned by collect() must be assigned back.
-func _collect(swarm: Swarm, x: float, z: float, radius: float, grid: SpatialGrid) -> void:
-	_scratch.clear()
+## Fills _scratch with alive enemy indices within radius. The brute-force path is ascending, as in C#
+## Combat.Collect. With a grid, ordered = true sorts the matches so hit order matches that path; pass
+## false only where the outcome does not depend on order (each enemy handled on its own, or ties broken explicitly).
+func _collect(swarm: Swarm, x: float, z: float, radius: float, grid: SpatialGrid, ordered: bool) -> void:
 	if grid != null:
-		_scratch = grid.collect(x, z, radius, _scratch)
-		_scratch.sort()
+		var found: int = grid.collect(x, z, radius)
+		_scratch.load_from(grid.hits, found, swarm.capacity, ordered)
 	else:
-		_scratch = Combat.collect(swarm, x, z, radius, _scratch)
+		_scratch.reserve(swarm.capacity)
+		Combat.collect(swarm, x, z, radius, _scratch)
 
 
 func _nearest(swarm: Swarm, x: float, z: float, reach: float, grid: SpatialGrid) -> int:
@@ -276,10 +280,11 @@ func _nearest(swarm: Swarm, x: float, z: float, reach: float, grid: SpatialGrid)
 ## Nearest alive enemy not yet in the current chain. Equal distances: the highest index wins,
 ## which is what C#'s ascending scan with <= produces.
 func _nearest_excluding(swarm: Swarm, x: float, z: float, reach: float, grid: SpatialGrid) -> int:
-	_collect(swarm, x, z, reach, grid)
+	_collect(swarm, x, z, reach, grid, false)
 	var best: float = reach * reach
 	var found: int = -1
-	for i in _scratch:
+	for j in _scratch.count:
+		var i: int = _scratch.items[j]
 		if not swarm.alive[i] or _marks[i] == _stamp:
 			continue
 		var dx: float = swarm.x[i] - x

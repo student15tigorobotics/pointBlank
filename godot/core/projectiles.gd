@@ -42,7 +42,6 @@ const BALL_GRAVITY: float = 6.0     # softened for table scale; real 9.8 made th
 const BALL_FRICTION: float = 0.32   # fraction of speed lost per second while rolling
 const BALL_CRUSH_RADIUS: float = 0.11
 
-var _buf: PackedInt32Array = PackedInt32Array()
 var _next: int = 0
 var _hit_t: float = 0.0   # side result of _first_contact: entry fraction of the last hit
 
@@ -139,11 +138,10 @@ func tick(dt: float, swarm: Swarm, grid: SpatialGrid, economy: BattleEconomy, im
 		var hit_t: float = 0.0   # where along the segment the hit lands: 0 = start, 1 = end
 		if not fizzled and swarm.alive_count > 0:
 			# Candidates from the grid cells that cover the whole segment: its midpoint, plus half
-			# its length, plus the hit radius.
+			# its length, plus the hit radius. They sit in grid.hits[0 .. found - 1].
 			var half_len: float = 0.5 * sqrt(seg_x * seg_x + seg_z * seg_z)
-			_buf.clear()
-			_buf = grid.collect(sx0 + seg_x * 0.5, sz0 + seg_z * 0.5, half_len + HIT_RADIUS * 2.0, _buf)
-			hit = _first_contact(swarm, sx0, sy0, sz0, seg_x, seg_y, seg_z)
+			var found: int = grid.collect(sx0 + seg_x * 0.5, sz0 + seg_z * 0.5, half_len + HIT_RADIUS * 2.0)
+			hit = _first_contact(swarm, grid, found, sx0, sy0, sz0, seg_x, seg_y, seg_z)
 			hit_t = _hit_t
 		if hit < 0 and not fizzled:
 			continue
@@ -170,14 +168,14 @@ func tick(dt: float, swarm: Swarm, grid: SpatialGrid, economy: BattleEconomy, im
 
 ## Earliest enemy whose HIT_RADIUS sphere the frame's segment enters. Returns its slot, or -1.
 ## The entry fraction (0 = segment start, 1 = segment end) is left in _hit_t. Candidates are the
-## grid entries in _buf. Ties go to the later candidate, as the point test did.
-func _first_contact(swarm: Swarm, sx0: float, sy0: float, sz0: float, seg_x: float, seg_y: float, seg_z: float) -> int:
+## first `found` entries of grid.hits. Ties go to the later candidate, as the point test did.
+func _first_contact(swarm: Swarm, grid: SpatialGrid, found: int, sx0: float, sy0: float, sz0: float, seg_x: float, seg_y: float, seg_z: float) -> int:
 	var seg2: float = seg_x * seg_x + seg_y * seg_y + seg_z * seg_z
 	var r2: float = HIT_RADIUS * HIT_RADIUS
 	var best: int = -1
 	var best_t: float = 2.0
-	for k in _buf.size():
-		var e: int = _buf[k]
+	for k in found:
+		var e: int = grid.hits[k]
 		if swarm.alive[e] == 0:
 			continue
 		# Solve |start + t * seg - enemy|^2 = r^2 for its smallest root t.
@@ -226,10 +224,9 @@ func _tick_ball(i: int, dt: float, swarm: Swarm, grid: SpatialGrid, economy: Bat
 
 	# Crush everything the ball touches; continuous dps melts small enemies on contact.
 	if swarm.alive_count > 0:
-		_buf.clear()
-		_buf = grid.collect(px[i], pz[i], BALL_CRUSH_RADIUS, _buf)
-		for k2 in _buf.size():
-			Combat.hit(swarm, _buf[k2], damage[i] * dt, economy)
+		var found: int = grid.collect(px[i], pz[i], BALL_CRUSH_RADIUS)
+		for k2 in found:
+			Combat.hit_area(swarm, grid.hits[k2], damage[i] * dt, economy)
 
 	if left[i] <= 0.0 or (py[i] <= BALL_RADIUS + 0.001 and flat < 0.08):
 		alive[i] = 0

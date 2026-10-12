@@ -33,7 +33,6 @@ var fighting: PackedByteArray = PackedByteArray()     # 1 while locked in melee 
 var alive: PackedByteArray = PackedByteArray()
 
 var path: BattlePath
-var _buf: PackedInt32Array = PackedInt32Array()
 
 
 func _init(p: BattlePath) -> void:
@@ -75,12 +74,11 @@ func tick(dt: float, swarm: Swarm, grid: SpatialGrid, economy: BattleEconomy) ->
 		if alive[i] == 0:
 			continue
 		# Find the closest live enemy in reach.
-		_buf.clear()
-		_buf = grid.collect(x[i], z[i], REACH, _buf)
+		var found: int = grid.collect(x[i], z[i], REACH)   # candidates: grid.hits[0 .. found - 1]
 		var target: int = -1
 		var best: float = REACH * REACH
-		for k in _buf.size():
-			var e: int = _buf[k]
+		for k in found:
+			var e: int = grid.hits[k]
 			if swarm.alive[e] == 0:
 				continue
 			# Every live enemy in reach is stalled, not only the one being fought: a body in the

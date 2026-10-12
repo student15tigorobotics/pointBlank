@@ -36,6 +36,7 @@ func _init() -> void:
 	_test_merged_crowds()
 	_test_weapons()
 	_test_towers()
+	_test_spatial_queries()
 	_test_profile()
 	_test_leaderboard()
 	print()
@@ -329,6 +330,77 @@ func _test_towers() -> void:
 	var credits_before_upgrade: int = eco_disc.credits
 	var disc_upgraded: bool = disc_turret != null and disc_towers.upgrade(disc_turret, eco_disc)
 	_check(disc_upgraded and credits_before_upgrade - eco_disc.credits == 30, "level-1 turret upgrade costs round(36 * 0.84) = 30 with the tower cost multiplier")
+
+
+func _test_spatial_queries() -> void:
+	print("Spatial queries")
+	var stage: Dictionary = StageCatalog.all()[0]
+	var field := Swarm.new(BattlePath.new(stage["path"]), 300)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	for _i in 300:
+		var slot: int = field.spawn(Balance.EnemyKind.DRONE, 1.0, rng.randf())
+		field.x[slot] = rng.randf_range(-1.9, 1.9)
+		field.z[slot] = rng.randf_range(-1.9, 1.9)
+	var grid := SpatialGrid.new()
+	grid.rebuild(field)
+	# Kill a third of the field after the rebuild: both queries must skip the dead, as the brute-force scan does.
+	for i in range(0, 300, 3):
+		field.kill(i)
+	var index_buf := Combat.IndexBuffer.new()
+	index_buf.reserve(field.capacity)
+	var grid_ok: bool = true
+	var combat_ok: bool = true
+	for radius in [0.05, 0.12, 0.3, 0.8, 2.5]:
+		for _q in 6:
+			var qx: float = rng.randf_range(-2.0, 2.0)
+			var qz: float = rng.randf_range(-2.0, 2.0)
+			var want: Array = _brute_force_within(field, qx, qz, radius)
+			var found: int = grid.collect(qx, qz, radius)
+			var got: Array = []
+			for k in found:
+				got.append(grid.hits[k])
+			got.sort()
+			if got != want:
+				grid_ok = false
+			var direct_count: int = Combat.collect(field, qx, qz, radius, index_buf)
+			var direct: Array = []
+			for k in direct_count:
+				direct.append(index_buf.items[k])
+			if direct != want:
+				combat_ok = false
+	_check(grid_ok, "grid collect returns the brute-force set for 300 enemies at five radii")
+	_check(combat_ok, "Combat.collect returns the brute-force indices in ascending order")
+
+	# Boulder-style crush: a ball that comes to rest on a clump of 4 hits every member, so the clump takes 4x damage.
+	var crush := Swarm.new(BattlePath.new(stage["path"]), 10)
+	var crush_eco := BattleEconomy.new(BattleModifiers.defaults())
+	var clump: int = crush.spawn(Balance.EnemyKind.BRUTE, 1.0, 0.5)
+	crush.x[clump] = 0.0
+	crush.z[clump] = 0.0
+	crush.clump_count[clump] = 4
+	crush.set_hp(clump, 100.0)
+	var crush_grid := SpatialGrid.new()
+	crush_grid.rebuild(crush)
+	var balls := Projectiles.new()
+	balls.fire_ball(Vector3(0.0, 0.05, 0.0), Vector3.ZERO, 1.0, 50.0)
+	var impacts: Array = []
+	balls.tick(0.1, crush, crush_grid, crush_eco, impacts)
+	_check(absf(crush.hp[clump] - 80.0) < EPS, "boulder crush on a clump of 4 deals 4x damage (5 per body, 20 total)")
+
+
+## Brute-force reference: every alive slot within XZ radius of (x, z), ascending.
+func _brute_force_within(sw: Swarm, x: float, z: float, radius: float) -> Array:
+	var out: Array = []
+	var r2: float = radius * radius
+	for i in sw.high_water:
+		if sw.alive[i] == 0:
+			continue
+		var dx: float = sw.x[i] - x
+		var dz: float = sw.z[i] - z
+		if dx * dx + dz * dz <= r2:
+			out.append(i)
+	return out
 
 
 func _test_profile() -> void:

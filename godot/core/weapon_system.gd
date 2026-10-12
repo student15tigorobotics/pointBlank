@@ -26,7 +26,7 @@ var _w_cone: PackedFloat32Array = PackedFloat32Array()
 var _w_radius: PackedFloat32Array = PackedFloat32Array()
 var _w_count: PackedInt32Array = PackedInt32Array()
 
-var _scratch: PackedInt32Array = PackedInt32Array()
+var _scratch: Combat.IndexBuffer = Combat.IndexBuffer.new()   # nova splash candidates, reused every burst
 var _scatter_slot: PackedInt32Array = PackedInt32Array()
 var _scatter_cos: PackedFloat64Array = PackedFloat64Array()
 # Arc chain set as stamps: _marks[i] == _stamp means enemy i is already in this chain.
@@ -215,12 +215,10 @@ func _fire_nova(kind: int, o: Vector3, d: Vector3, dmg: float, swarm: Swarm, eco
 	impact.y = 0.0
 	shots.add(o, impact, radius, ShotStyle.Style.BURST)
 
-	# PackedArrays are passed by value, so the array returned by collect() must be assigned back.
-	_scratch.clear()
-	_scratch = Combat.collect(swarm, impact.x, impact.z, radius, _scratch)
-	var count: int = _scratch.size()
+	_scratch.reserve(swarm.capacity)
+	var count: int = Combat.collect(swarm, impact.x, impact.z, radius, _scratch)
 	for k in range(count):
-		var i: int = _scratch[k]
+		var i: int = _scratch.items[k]
 		var dx: float = swarm.x[i] - impact.x
 		var dz: float = swarm.z[i] - impact.z
 		var falloff: float = 1.0 - 0.5 * sqrt(dx * dx + dz * dz) / radius

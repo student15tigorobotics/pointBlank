@@ -26,6 +26,9 @@ var cell_items: PackedInt32Array = PackedInt32Array()   # enemy slot indices, gr
 var cell_x: PackedFloat32Array = PackedFloat32Array()   # snapshot x, aligned with cell_items
 var cell_z: PackedFloat32Array = PackedFloat32Array()   # snapshot z, aligned with cell_items
 
+var hits: PackedInt32Array = PackedInt32Array()         # result of the last collect(): first hit_count entries
+var hit_count: int = 0
+
 var _swarm: Swarm = null
 var _cell_of: PackedInt32Array = PackedInt32Array()     # per-slot cell id scratch, -1 when dead
 var _cursor: PackedInt32Array = PackedInt32Array()
@@ -44,6 +47,8 @@ func rebuild(swarm: Swarm) -> void:
 		cell_items.resize(cap)
 		cell_x.resize(cap)
 		cell_z.resize(cap)
+	if hits.size() < cap:
+		hits.resize(cap)   # a query can match every enemy, so hits needs one entry per slot. Grows only.
 
 	cell_start.fill(0)
 	var alive: PackedByteArray = swarm.alive
@@ -78,18 +83,21 @@ func rebuild(swarm: Swarm) -> void:
 		cell_z[k] = zs[i]
 
 
-## Appends the slots within XZ radius of (x, z), using positions as of the last rebuild.
-## Dead slots (killed since the rebuild) are skipped. Returns the array with hits appended.
-## PackedInt32Array is passed by value, so callers must assign the result: buf = grid.collect(..., buf).
-func collect(x: float, z: float, radius: float, into: PackedInt32Array) -> PackedInt32Array:
+## Writes the alive slots within XZ radius of (x, z) into hits[0 .. n - 1] and returns n (also kept in
+## hit_count). Positions are as of the last rebuild; slots killed since then are skipped. Order is
+## cell order, not slot order. Each call overwrites the previous result, so read hits before calling again.
+## Allocates nothing: hits was sized by rebuild().
+func collect(x: float, z: float, radius: float) -> int:
+	hit_count = 0
 	if _swarm == null:
-		return into
+		return 0
 	var alive: PackedByteArray = _swarm.alive
 	var r2: float = radius * radius
 	var cx0: int = _axis(x - radius)
 	var cx1: int = _axis(x + radius)
 	var cz0: int = _axis(z - radius)
 	var cz1: int = _axis(z + radius)
+	var n: int = 0
 	for cz in range(cz0, cz1 + 1):
 		for cx in range(cx0, cx1 + 1):
 			var c: int = cz * SIDE + cx
@@ -99,8 +107,10 @@ func collect(x: float, z: float, radius: float, into: PackedInt32Array) -> Packe
 				if dx * dx + dz * dz <= r2:
 					var i: int = cell_items[k]
 					if alive[i] != 0:
-						into.append(i)
-	return into
+						hits[n] = i
+						n += 1
+	hit_count = n
+	return n
 
 
 ## Nearest alive enemy within reach of (x, z), using current swarm positions for distance.
